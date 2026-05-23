@@ -1,10 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f6fb;
-  --foreground: #182132;
-  --accent-blue: #1e3a8a;
-  --accent-green: #0f4c5c;
+  /* 参考 https://sse.sysu.edu.cn 主题 init.css / 页面结构 */
+  --sysu-page: #f6f6f6;
+  --sysu-surface: #ffffff;
+  --sysu-muted: #f9f9f9;
+  --sysu-border: #e2e2e2;
+  --background: var(--sysu-page);
+  --foreground: #333333;
+  --accent-blue: #0062ab;
+  --accent-green: #005e27;
+  --sysu-nav-border: #004a1f;
   --font-display: "Source Han Serif SC", "STSong", "Songti SC", "Times New Roman", serif;
   --font-accent: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
@@ -50,16 +56,99 @@ label {
 }
 
 .sysu-card {
-  background: #ffffff;
-  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: var(--sysu-surface);
+  border: 1px solid var(--sysu-border);
   border-radius: 8px;
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .sysu-card:hover {
-  border-color: rgba(71, 85, 105, 0.6);
+  border-color: #d5d5d5;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1);
+}
+
+/* 主内容区背景（不作用于 header 导航栏） */
+main .bg-white {
+  background-color: var(--sysu-surface) !important;
+}
+
+main .bg-slate-50 {
+  background-color: var(--sysu-muted) !important;
+}
+
+main .hover\:bg-slate-50:hover {
+  background-color: var(--sysu-muted) !important;
+}
+
+main .hover\:bg-slate-50\/50:hover {
+  background-color: color-mix(in srgb, var(--sysu-muted) 50%, transparent) !important;
+}
+
+main .bg-\[\#e6edf6\] {
+  background-color: var(--sysu-page) !important;
+}
+
+/* 导航栏：参考 sse.sysu.edu.cn .header-bg-primary / .main-menu-bg-primary */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  isolation: isolate;
+  background-color: var(--accent-green);
+  border-bottom: 1px solid var(--sysu-nav-border);
+  color: #ffffff;
+}
+
+.site-header-brand {
+  position: relative;
+  z-index: 3;
+}
+
+.site-header-logo {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+}
+
+/* 白字校徽 PNG：黑底与绿色导航栏融合为白字效果 */
+.site-header-logo-img {
+  display: block;
+  mix-blend-mode: screen;
+}
+
+.site-header-brand-sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.site-header-brand-title {
+  color: #ffffff;
+}
+
+.site-header-nav {
+  position: relative;
+  z-index: 1;
+  background-color: transparent;
+  border: none;
+}
+
+.site-header-nav-link {
+  padding: 7px 12px;
+  font-size: 16px;
+  color: #ffffff;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.site-header-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.site-header-nav-link.is-active {
+  background-color: #ffffff;
+  color: var(--accent-green);
+  font-weight: 600;
 }
 
 @media print {

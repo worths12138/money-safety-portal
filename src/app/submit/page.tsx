@@ -46,7 +46,7 @@ export default function SubmitPage() {
 
   const summaryCards = useMemo(
     () => [
-      { label: "支持格式", value: "PDF / Word / 图片" },
+      { label: "凭证格式", value: "PDF / Word / 图片" },
       { label: "超时处理", value: "8 秒后自动中止请求" },
       { label: "防重复提交", value: "按钮提交中会被锁定" },
     ],
@@ -82,7 +82,7 @@ export default function SubmitPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setStatus("正在提交并等待风控结果...");
+    setStatus("正在提交并等待 Agent 风控评估...");
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 8000);
@@ -125,9 +125,9 @@ export default function SubmitPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-700">/submit</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">提交大创报销</h2>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">提交合规申报</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              填写项目名、周期与金额后，在同一区域上传票据、支付记录、清单等材料。支持 PDF、Word 与常见图片格式，可拖拽或点击选择，未上传项在审核页保持留白。
+              填写项目名、周期与申报金额后，在同一区域上传发票、支付凭证与清单等佐证材料。支持 PDF、Word 与常见图片格式；未上传项在风控报告中保持留白。
             </p>
           </div>
           <Link href="/admin" className="border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50">
@@ -153,7 +153,7 @@ export default function SubmitPage() {
 
           <label className="space-y-2 block">
             <span className="text-sm font-medium text-slate-700">补充说明</span>
-            <textarea className="min-h-28 w-full rounded-md border border-slate-200 bg-white px-4 py-3 outline-none transition placeholder:text-slate-400 focus:border-blue-500" value={form.notes} onChange={(event) => updateField("notes", event.target.value)} placeholder="如有特殊材料要求、临时补交情况或备注，请写在这里。" />
+            <textarea className="min-h-28 w-full rounded-md border border-slate-200 bg-white px-4 py-3 outline-none transition placeholder:text-slate-400 focus:border-blue-500" value={form.notes} onChange={(event) => updateField("notes", event.target.value)} placeholder="如有特殊合规说明、补证情况或风险备注，请写在这里。" />
           </label>
 
           <label
@@ -184,11 +184,11 @@ export default function SubmitPage() {
               </svg>
             </span>
 
-            <p className="mt-5 text-base font-semibold text-slate-900">点击或拖拽上传报销材料</p>
+            <p className="mt-5 text-base font-semibold text-slate-900">点击或拖拽上传合规凭证</p>
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
               支持 PDF、Word（.doc / .docx）及 JPG、PNG、WEBP 等图片，可一次选择多个文件。
             </p>
-            <p className="mt-1 text-xs text-slate-400">发票、回单、清单、签章页等均可放入本区域</p>
+            <p className="mt-1 text-xs text-slate-400">发票、支付回单、支出清单、签章页等均可用于风控核验</p>
 
             {materialFiles.length > 0 ? (
               <ul className="mt-6 w-full max-w-lg space-y-2 text-left text-sm text-slate-700">
@@ -207,10 +207,10 @@ export default function SubmitPage() {
               disabled={submitting}
               className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? "提交中..." : "提交报销"}
+              {submitting ? "提交中..." : "提交合规申报"}
             </button>
             <Link href="/report/2026-041" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-              先看示例报告
+              先看示例风控报告
             </Link>
           </div>
           <p className="min-h-6 text-sm text-slate-500">{status}</p>
@@ -220,8 +220,8 @@ export default function SubmitPage() {
       <aside className="space-y-6">
         <div className="sysu-card p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">提交说明</p>
-          <h3 className="mt-2 text-2xl font-semibold text-slate-950">前端先行，接口预留</h3>
-          <p className="mt-3 text-sm leading-6 text-slate-500">表单提交会调用 /api/submissions，接口层内置 8 秒超时与简单限流。后端接入后，只要替换该接口即可。</p>
+          <h3 className="mt-2 text-2xl font-semibold text-slate-950">申报与 Agent 接口</h3>
+          <p className="mt-3 text-sm leading-6 text-slate-500">申报数据经 /api/submissions 入库，并可对接 /api/agent/review 触发风控 Agent 评估。</p>
         </div>
 
         <div className="grid gap-4">
@@ -234,7 +234,7 @@ export default function SubmitPage() {
         </div>
 
         <div className="sysu-card p-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">已选材料</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">已选凭证</p>
           <div className="mt-4 rounded-md border border-dashed border-slate-200 px-4 py-3">
             <p className="text-sm font-medium text-slate-700">
               {materialFiles.length ? `共 ${materialFiles.length} 个文件` : "尚未选择文件"}

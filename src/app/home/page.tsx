@@ -8,17 +8,17 @@ export default function Home() {
         <div className="sysu-card p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/ 首页</p>
           <h2 className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            中山大学软件工程学院大创报销，让流程更轻盈。
+            中山大学软件工程学院经费合规风控，让核验更可信。
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            面向大创项目报销，覆盖材料提交、审核报告与规则配置，保留 AI 初筛与风险分级。
+            面向科研经费支出场景，覆盖合规申报、风控报告与规则配置，支持 Agent 预审与风险分级。
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/submit" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-              发起报销
+              发起合规申报
             </Link>
             <Link href="/report/2026-041" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-              查看审核报告
+              查看风控报告
             </Link>
           </div>
         </div>
@@ -37,7 +37,7 @@ export default function Home() {
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="sysu-card relative overflow-hidden p-6">
-          <div className="absolute inset-0 bg-[#e6edf6]" aria-hidden />
+          <div className="absolute inset-0 bg-[#f6f6f6]" aria-hidden />
           <div className="relative">
             <div className="h-1.5 w-14 rounded-md border border-slate-200 bg-white" />
             <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
@@ -50,8 +50,8 @@ export default function Home() {
               </span>
               <span className="font-medium">快速入口</span>
             </div>
-            <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">上传后自动生成报销报告草稿</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">拖拽上传、接口超时、批量处理和留白显示都已先做好。</p>
+            <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">上传凭证后自动生成风控报告草稿</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">支持多格式凭证采集、Agent 预审接口预留与缺失项留白展示。</p>
           </div>
         </div>
 
@@ -59,7 +59,7 @@ export default function Home() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">示例报告</p>
-              <h3 className="mt-2 text-2xl font-semibold text-slate-950">最近的两份报销审核样例</h3>
+              <h3 className="mt-2 text-2xl font-semibold text-slate-950">最近的两份合规风控样例</h3>
             </div>
             <Link href="/admin" className="text-sm font-medium text-slate-900 transition hover:text-slate-700">
               去后台处理
@@ -81,7 +81,7 @@ export default function Home() {
                 <p className="mt-3 text-sm leading-6 text-slate-600">{report.conclusion}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Link href={`/report/${report.id}`} className="border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50">
-                    打开报告
+                    打开风控报告
                   </Link>
                 </div>
               </article>

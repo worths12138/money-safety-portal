@@ -68,14 +68,14 @@ export default function RulesPage() {
     <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
       <section className="sysu-card p-6">
         <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin/rules</p>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">报销规则配置</h2>
-        <p className="mt-2 text-sm text-slate-500">维护学院定制规则，比如可报销类别、金额上限、DDL 和特殊材料要求。保存接口已经预留。</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规规则配置</h2>
+        <p className="mt-2 text-sm text-slate-500">维护学院合规策略，如支出类别白名单、单笔限额、截止日与特殊凭证要求。保存接口已预留。</p>
 
         <div className="mt-6 grid gap-4">
-          <RuleInput label="可报销类别" value={form.allowedCategories} onChange={(value) => setForm((current) => ({ ...current, allowedCategories: value }))} placeholder="实验耗材 / 设备采购 / 差旅交通" />
+          <RuleInput label="允许支出类别" value={form.allowedCategories} onChange={(value) => setForm((current) => ({ ...current, allowedCategories: value }))} placeholder="实验耗材 / 设备采购 / 差旅交通" />
           <RuleInput label="金额上限" value={form.amountLimit} onChange={(value) => setForm((current) => ({ ...current, amountLimit: value }))} placeholder="单笔 ¥10,000" />
           <RuleInput label="DDL" value={form.deadline} onChange={(value) => setForm((current) => ({ ...current, deadline: value }))} placeholder="2026-06-10 18:00" />
-          <RuleInput label="特殊材料要求" value={form.specialMaterials} onChange={(value) => setForm((current) => ({ ...current, specialMaterials: value }))} placeholder="比价单 / 签章清单 / 会议纪要" />
+          <RuleInput label="特殊凭证要求" value={form.specialMaterials} onChange={(value) => setForm((current) => ({ ...current, specialMaterials: value }))} placeholder="比价单 / 签章清单 / 会议纪要" />
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
@@ -102,7 +102,7 @@ export default function RulesPage() {
 
         <div className="sysu-card p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">Agent 接口</p>
-          <p className="mt-4 text-sm leading-6 text-slate-500">后端接入后，可让 /api/agent/review 读取这些规则并返回自动审查结果。当前页面只是先把接口和参数位置留好。</p>
+          <p className="mt-4 text-sm leading-6 text-slate-500">接入后，/api/agent/review 将读取本页规则并输出 Agent 合规审查结论。</p>
         </div>
       </aside>
     </div>

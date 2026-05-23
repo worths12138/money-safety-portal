@@ -40,8 +40,8 @@ export default function AdminPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">大创报销后台</h2>
-            <p className="mt-2 text-sm text-slate-500">按风险筛选，批量查看提交，一键通过或驳回，并记录每次操作。</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规风控运营台</h2>
+            <p className="mt-2 text-sm text-slate-500">按风险分级筛选申报，批量复核，一键通过或驳回，并记录处置日志。</p>
           </div>
           <Link href="/admin/rules" className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
             打开规则配置

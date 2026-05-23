@@ -6,7 +6,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const limited = rateLimit(request, "reports", 20, 30_000);
   if (!limited.allowed) {
     return NextResponse.json(
-      { ok: false, message: "报告访问过快，请稍后重试。" },
+      { ok: false, message: "风控报告访问过快，请稍后重试。" },
       { status: 429, headers: getClientTimeoutHeader(limited.resetAt) },
     );
   }
@@ -20,6 +20,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return timeoutResponse();
     }
 
-    return NextResponse.json({ ok: false, message: "报告加载失败。" }, { status: 500 });
+    return NextResponse.json({ ok: false, message: "风控报告加载失败。" }, { status: 500 });
   }
 }

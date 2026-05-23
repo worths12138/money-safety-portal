@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       id: report.id,
-      message: "提交成功，已生成报告草稿。",
+      message: "申报成功，已生成风控报告草稿。",
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes("超时")) {

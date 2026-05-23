@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   const limited = rateLimit(request, "agent-review", 8, 60_000);
   if (!limited.allowed) {
     return NextResponse.json(
-      { ok: false, message: "AI 审核请求过于频繁。" },
+      { ok: false, message: "Agent 风控请求过于频繁。" },
       { status: 429, headers: getClientTimeoutHeader(limited.resetAt) },
     );
   }
@@ -15,9 +15,9 @@ export async function POST(request: Request) {
     const response = await withTimeout(
       Promise.resolve({
         ok: true,
-        message: "Agent 已生成初步审查意见。",
+        message: "Agent 已生成初步风控意见。",
         reportId: body.reportId ?? "",
-        annotations: ["金额与类别已核对。", "缺失材料已保留留白，便于补交。"],
+        annotations: ["申报金额与支出类别已核对。", "缺失凭证已保留留白，便于补证。"],
       }),
       8_000,
     );
@@ -28,6 +28,6 @@ export async function POST(request: Request) {
       return timeoutResponse();
     }
 
-    return NextResponse.json({ ok: false, message: "AI 审核失败。" }, { status: 500 });
+    return NextResponse.json({ ok: false, message: "Agent 风控评估失败。" }, { status: 500 });
   }
 }

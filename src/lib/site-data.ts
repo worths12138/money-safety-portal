@@ -47,7 +47,7 @@ export const defaultRiskRows: RiskRow[] = [
     item: "全部支出",
     amount: "待确认",
     tag: "用途说明不足",
-    riskDesc: "缺少自拟清单和报销清单，无法判断整体合规性",
+    riskDesc: "缺少自拟清单与支出清单，无法判断整体合规性",
     suggestion: "补充完整清单和签字",
   },
 ];
@@ -94,17 +94,17 @@ export type OperationLog = {
 };
 
 export const dashboardMetrics: Metric[] = [
-  { label: "大创提交", value: "28", hint: "较昨日 +12%" },
-  { label: "高风险待审", value: "6", hint: "先处理采购类项目" },
-  { label: "平均审核时长", value: "4.2 分钟", hint: "包含 AI 初筛" },
-  { label: "材料完整率", value: "91%", hint: "缺失项自动留白" },
+  { label: "合规申报", value: "28", hint: "较昨日 +12%" },
+  { label: "高风险待复核", value: "6", hint: "优先处理高额支出" },
+  { label: "平均风控时长", value: "4.2 分钟", hint: "含 Agent 预审" },
+  { label: "凭证完整率", value: "91%", hint: "缺失项自动留白" },
 ];
 
 export const quickHighlights = [
-  "支持发票、回单、清单与附件说明等材料拖拽上传",
-  "报告页展示总体结论、风险分、AI 标注与整改建议",
-  "管理员可按风险筛选、批量处理并查看操作日志",
-  "规则页可维护大创经费上限、DDL 和学院定制要求",
+  "支持发票、支付回单、清单等合规凭证统一采集",
+  "风控报告展示总体结论、风险分与可解释风险表",
+  "运营端可按风险分级筛选、处置并留存操作日志",
+  "规则页可维护支出上限、截止日与学院合规条款",
 ];
 
 export const featuredReports: ReportData[] = [
@@ -116,11 +116,11 @@ export const featuredReports: ReportData[] = [
     amount: "¥4,860",
     conclusion: "建议通过，票据结构完整，仅有一项支付记录缺失，需补充后归档。",
     riskScore: 22,
-    summary: "AI 先行判断为低风险，金额与类别匹配，存在一张未签章清单。",
+    summary: "Agent 预审为低风险，申报金额与支出用途匹配，支付凭证待补齐。",
     materials: [
       { label: "票据", value: "电子发票 2 份，已验真", status: "uploaded" },
       { label: "支付记录", value: "", status: "blank" },
-      { label: "材料清单", value: "大创项目报销清单（已盖章）", status: "uploaded" },
+      { label: "材料清单", value: "项目支出清单（已盖章）", status: "uploaded" },
     ],
     riskRows: defaultRiskRows,
     findings: [
@@ -129,7 +129,7 @@ export const featuredReports: ReportData[] = [
       { title: "签章完整性", level: "中", detail: "清单已盖章，支付记录需补齐存档。" },
     ],
     recommendations: ["补齐支付记录后进入终审", "导出 PDF 存档并同步学院台账"],
-    aiNotes: ["票据号码与平台返回结果一致。", "风险主要来自材料缺失，不影响金额真实性。"],
+    aiNotes: ["发票号码与验真结果一致。", "当前风险主要来自凭证缺失，暂未发现虚报金额迹象。"],
   },
   {
     id: "2026-042",
@@ -169,7 +169,7 @@ export const featuredReports: ReportData[] = [
       { title: "项目周期", level: "中", detail: "采购时间略晚于登记周期中段。" },
     ],
     recommendations: ["补充比价单和审批说明", "拆分采购或重新申报类别"],
-    aiNotes: ["模型检测到金额异常集中。", "材料清单缺失使完整度评分下降。"],
+    aiNotes: ["Agent 检测到金额集中度偏高。", "清单凭证缺失导致合规完整度评分下降。"],
   },
 ];
 
@@ -205,15 +205,15 @@ export const adminQueue: QueueItem[] = [
 
 export const auditRules: RuleItem[] = [
   { id: "limit", title: "金额上限", value: "单笔 ¥10,000", detail: "超过上限自动标记高风险。" },
-  { id: "ddl", title: "材料提交截止", value: "2026-06-10 18:00", detail: "超时进入补交流程。" },
-  { id: "category", title: "可报销类别", value: "软件订阅 / 设备采购 / 差旅交通", detail: "不在白名单的类别将提醒人工复核。" },
+  { id: "ddl", title: "申报截止", value: "2026-06-10 18:00", detail: "超时进入补证流程。" },
+  { id: "category", title: "允许支出类别", value: "软件订阅 / 设备采购 / 差旅交通", detail: "不在白名单的类别将触发合规提醒。" },
   { id: "special", title: "特殊材料", value: "比价单 / 签章清单 / 会议纪要", detail: "按学院规则扩展。" },
 ];
 
 export const operationLogs: OperationLog[] = [
   { id: "log-1", actor: "财务老师", action: "批量通过", target: "3 条低风险提交", time: "10:28" },
   { id: "log-2", actor: "系统", action: "自动标红", target: "智慧农场传感器套件", time: "10:15" },
-  { id: "log-3", actor: "审核员", action: "退回补交", target: "校园低碳配送小车", time: "09:58" },
+  { id: "log-3", actor: "复核员", action: "退回补证", target: "校园低碳配送小车", time: "09:58" },
 ];
 
 export const reportMaterialTypes = [

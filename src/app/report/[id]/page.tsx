@@ -14,7 +14,7 @@ function loadingReport(id: string): ReportData {
     amount: "",
     conclusion: "",
     riskScore: 0,
-    summary: "正在从接口读取报告...",
+    summary: "正在加载风控报告...",
     materials: reportMaterialTypes.slice(0, 3).map((label) => ({ label, value: "", status: "blank" })),
     riskRows: defaultRiskRows,
     findings: [],
@@ -26,7 +26,7 @@ function loadingReport(id: string): ReportData {
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [report, setReport] = useState<ReportData>(() => loadingReport(id));
-  const [message, setMessage] = useState("正在拉取报告数据...");
+  const [message, setMessage] = useState("正在拉取风控报告...");
   const [isPrinting, setIsPrinting] = useState(false);
   const [exportedAt, setExportedAt] = useState("");
 
@@ -52,16 +52,16 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
       .then(async (response) => {
         if (!response.ok) {
           const payload = (await response.json().catch(() => ({}))) as { message?: string };
-          throw new Error(payload.message ?? "报告加载失败");
+          throw new Error(payload.message ?? "风控报告加载失败");
         }
         return response.json();
       })
       .then((payload: { report: ReportData }) => {
         setReport(payload.report);
-        setMessage("报告已加载完成。");
+        setMessage("风控报告已加载完成。");
       })
       .catch((error: unknown) => {
-        setMessage(error instanceof DOMException && error.name === "AbortError" ? "报告请求超时。" : error instanceof Error ? error.message : "报告加载失败。");
+        setMessage(error instanceof DOMException && error.name === "AbortError" ? "风控报告请求超时。" : error instanceof Error ? error.message : "风控报告加载失败。");
       })
       .finally(() => window.clearTimeout(timer));
 
@@ -77,8 +77,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     <div className="report-print-root mx-auto flex w-full max-w-3xl flex-col gap-8 print:max-w-none">
       <section className="report-print-section sysu-card px-7 py-9 print:shadow-none">
         <div className="hidden print:block report-print-block border-0 px-0 py-0 mb-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">中山大学软件工程学院 · 大创报销</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-950">报销审核报告</h1>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">中山大学软件工程学院 · 经费合规风控</p>
+          <h1 className="mt-2 text-2xl font-semibold text-slate-950">经费合规风控报告</h1>
           <dl className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
             <div>
               <dt className="text-slate-500">报告编号</dt>
@@ -104,7 +104,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between no-print">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/report/{id}</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">报销审核报告</h2>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">经费合规风控报告</h2>
             <p className="mt-2 text-sm text-slate-500">{message}</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
@@ -124,11 +124,11 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         <div className="mt-8 flex flex-col gap-5 print:mt-0">
           <div className="report-print-block sysu-card min-h-[200px] px-7 py-8 print:min-h-0">
             <p className="text-sm uppercase tracking-[0.3em] text-slate-500">总体结论</p>
-            <p className="mt-4 text-2xl font-semibold leading-snug text-slate-950 print:text-lg">{report.conclusion || "报告生成中"}</p>
+            <p className="mt-4 text-2xl font-semibold leading-snug text-slate-950 print:text-lg">{report.conclusion || "风控评估生成中"}</p>
             <p className="mt-5 text-sm leading-8 text-slate-500 print:leading-6">{report.summary}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 print:grid-cols-2">
-            <ScoreCard label="风险分" value={`${report.riskScore}`} tone={report.riskScore >= 60 ? "high" : "low"} score={report.riskScore} />
+            <ScoreCard label="合规风险分" value={`${report.riskScore}`} tone={report.riskScore >= 60 ? "high" : "low"} score={report.riskScore} />
             <ScoreCard label="项目金额" value={report.amount || ""} tone="neutral" />
           </div>
           <RiskBar score={report.riskScore} className="hidden print:block" />
@@ -141,9 +141,9 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         <div className="sysu-card px-7 py-8">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">接口说明</p>
           <div className="mt-5 space-y-4 text-sm leading-7 text-slate-600">
-            <p>报告页通过 /api/reports/:id 加载数据，提交页会把新记录写入同一接口存储。</p>
-            <p>导出 PDF 使用浏览器「另存为 PDF」，版式会按当前报告内容自适应排版。</p>
-            <p>如果材料没提供，页面会保留空白，不会用占位文本顶替。</p>
+            <p>风控报告经 /api/reports/:id 加载，与合规申报数据同源存储。</p>
+            <p>导出 PDF 使用浏览器「另存为 PDF」，版式按当前风险项自适应排版。</p>
+            <p>缺失凭证在报告中保持留白，不生成虚假占位内容。</p>
           </div>
         </div>
 
@@ -162,7 +162,7 @@ function RiskBar({ score, className = "" }: { score: number; className?: string 
         <div className="h-3 rounded-md bg-[#E34234]" style={{ width: `${width}%` }} />
       </div>
       <p className="mt-5 text-sm leading-7 text-slate-500 print:text-xs print:leading-5">
-        风险分 {Math.round(width)} / 100，分值越高越需优先复核。
+        合规风险分 {Math.round(width)} / 100，分值越高越需优先复核。
       </p>
     </div>
   );
