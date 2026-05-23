@@ -60,7 +60,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 <p className="site-header-brand-sub text-xs font-semibold uppercase tracking-[0.24em]">
                   软件工程学院
                 </p>
-                <p className="site-header-brand-title text-sm font-semibold">经费合规风控平台</p>
+                <p className="site-header-brand-title text-sm font-semibold">大创报销经费合规风控平台</p>
               </div>
             </div>
 
@@ -101,7 +101,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
           <main className="relative flex-1 pb-10">{children}</main>
           <footer className="no-print relative mb-2 flex flex-col gap-2 border-t border-slate-200 py-5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
             <p>保留 /api/submit、/api/reports、/api/agent/review、/api/rules 接口占位，方便后端对接。</p>
-            <p>面向科研经费支出的合规与风控场景，支持 Agent 预审、可解释风险项与人工复核闭环。</p>
+            <p>面向大创报销经费的合规与风控场景，支持 Agent 预审、可解释风险项与人工复核闭环。</p>
           </footer>
         </section>
       </div>

@@ -1,4 +1,4 @@
-const DEFAULT_TITLE = "经费合规风控报告";
+const DEFAULT_TITLE = "大创报销经费合规风控报告";
 
 export function buildReportDocumentTitle(reportId: string, projectName?: string) {
   const name = projectName?.trim();

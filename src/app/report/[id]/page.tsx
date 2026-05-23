@@ -77,8 +77,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     <div className="report-print-root mx-auto flex w-full max-w-3xl flex-col gap-8 print:max-w-none">
       <section className="report-print-section sysu-card px-7 py-9 print:shadow-none">
         <div className="hidden print:block report-print-block border-0 px-0 py-0 mb-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">中山大学软件工程学院 · 经费合规风控</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-950">经费合规风控报告</h1>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">中山大学软件工程学院 · 大创报销经费合规风控</p>
+          <h1 className="mt-2 text-2xl font-semibold text-slate-950">大创报销经费合规风控报告</h1>
           <dl className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
             <div>
               <dt className="text-slate-500">报告编号</dt>
@@ -104,7 +104,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between no-print">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/report/{id}</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">经费合规风控报告</h2>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">大创报销经费合规风控报告</h2>
             <p className="mt-2 text-sm text-slate-500">{message}</p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">

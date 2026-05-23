@@ -8,10 +8,10 @@ export default function Home() {
         <div className="sysu-card p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/ 首页</p>
           <h2 className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            中山大学软件工程学院经费合规风控，让核验更可信。
+            中山大学软件工程学院大创报销经费合规风控，让核验更可信。
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            面向科研经费支出场景，覆盖合规申报、风控报告与规则配置，支持 Agent 预审与风险分级。
+            面向大创报销场景，覆盖合规申报、风控报告与规则配置，支持 Agent 预审与风险分级。
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/submit" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">

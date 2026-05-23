@@ -9,10 +9,10 @@ export default function StartPage() {
         <div className="sysu-card bg-white/90 p-8 backdrop-blur">
           <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500">SYSU • 金融合规 · 风控</p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            科研经费合规风控，从这里开始更可追溯
+            大创报销经费合规风控，从这里开始更可追溯
           </h1>
           <p className="mt-4 text-base leading-7 text-slate-600">
-            以合规规则与风险模型为基线，整合凭证采集、Agent 预审与可解释风险表，形成可追溯的经费风控入口。
+            以合规规则与风险模型为基线，整合凭证采集、Agent 预审与可解释风险表，形成可追溯的大创报销风控入口。
           </p>
           <div className="mt-8">
             <Link
