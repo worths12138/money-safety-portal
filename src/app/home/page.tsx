@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { getHomeRecentReports, quickEntrySteps } from "@/lib/home-data";
-import { dashboardMetrics, quickHighlights } from "@/lib/site-data";
+import { getHomeDashboardMetrics, getHomeRecentReports, quickEntrySteps } from "@/lib/home-data";
+import { quickHighlights } from "@/lib/site-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const recentReports = await getHomeRecentReports(2);
+  const [metrics, recentReports] = await Promise.all([getHomeDashboardMetrics(), getHomeRecentReports(2)]);
   const latestReport = recentReports[0];
 
   return (
@@ -40,7 +40,7 @@ export default async function Home() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-4">
-        {dashboardMetrics.map((metric) => (
+        {metrics.map((metric) => (
           <div key={metric.label} className="sysu-card p-6">
             <div className="mb-4 h-1 w-16 rounded-md border border-slate-200 bg-white" />
             <p className="text-sm text-slate-500">{metric.label}</p>
