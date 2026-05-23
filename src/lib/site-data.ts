@@ -68,13 +68,21 @@ export type ReportData = {
   aiNotes: string[];
 };
 
+/** 运营台队列行；字段含义见 `admin-definitions.ts` */
 export type QueueItem = {
+  /** 申报编号，对应 submissions.id */
   id: string;
+  /** 大创项目名称 */
   projectName: string;
+  /** 风险分 0–100，对应 submissions.risk_score */
   risk: number;
+  /** 人工审核状态 */
   status: "待审核" | "通过" | "驳回";
+  /** 申报人展示名（学院 + 姓名） */
   owner: string;
+  /** 提交时间（展示用相对/本地格式） */
   submittedAt: string;
+  /** 支出类别 */
   category: string;
 };
 
@@ -85,11 +93,18 @@ export type RuleItem = {
   detail: string;
 };
 
+/** 审核记录展示项；持久化见 audit_records 表 */
 export type OperationLog = {
   id: string;
+  /** 关联申报编号，用于跳转风控报告 */
+  submissionId: string;
+  /** 操作人 */
   actor: string;
+  /** 处置动作，如「一键通过」 */
   action: string;
+  /** 被审对象快照（项目名 + 编号 + 结果） */
   target: string;
+  /** 操作时间 */
   time: string;
 };
 
@@ -211,9 +226,9 @@ export const auditRules: RuleItem[] = [
 ];
 
 export const operationLogs: OperationLog[] = [
-  { id: "log-1", actor: "财务老师", action: "批量通过", target: "3 条低风险提交", time: "10:28" },
-  { id: "log-2", actor: "系统", action: "自动标红", target: "智慧农场传感器套件", time: "10:15" },
-  { id: "log-3", actor: "复核员", action: "退回补证", target: "校园低碳配送小车", time: "09:58" },
+  { id: "log-1", submissionId: "2026-039", actor: "财务老师", action: "批量通过", target: "3 条低风险提交", time: "10:28" },
+  { id: "log-2", submissionId: "2026-042", actor: "系统", action: "自动标红", target: "智慧农场传感器套件", time: "10:15" },
+  { id: "log-3", submissionId: "2026-041", actor: "复核员", action: "退回补证", target: "校园低碳配送小车", time: "09:58" },
 ];
 
 export const reportMaterialTypes = [

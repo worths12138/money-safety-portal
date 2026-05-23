@@ -1,15 +1,65 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { adminQueue, operationLogs } from "@/lib/site-data";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  adminAuditLogFieldDefinitions,
+  adminEntityDefinitions,
+  adminQueueFieldDefinitions,
+  adminRiskFilterDefinitions,
+} from "@/lib/admin-definitions";
+import type { OperationLog, QueueItem } from "@/lib/site-data";
 
 type QueueStatus = "待审核" | "通过" | "驳回";
 
 export default function AdminPage() {
   const [riskFilter, setRiskFilter] = useState<"全部" | "低" | "中" | "高">("全部");
-  const [queue, setQueue] = useState(adminQueue);
-  const [logs, setLogs] = useState(operationLogs);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [logs, setLogs] = useState<OperationLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setError("");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const [queueRes, logsRes] = await Promise.all([
+        fetch("/api/admin/queue", { signal: controller.signal }),
+        fetch("/api/admin/audit-logs", { signal: controller.signal }),
+      ]);
+
+      const queuePayload = (await queueRes.json()) as { ok?: boolean; queue?: QueueItem[]; message?: string };
+      const logsPayload = (await logsRes.json()) as { ok?: boolean; logs?: OperationLog[]; message?: string };
+
+      if (!queueRes.ok || !queuePayload.ok) {
+        throw new Error(queuePayload.message ?? "队列加载失败");
+      }
+      if (!logsRes.ok || !logsPayload.ok) {
+        throw new Error(logsPayload.message ?? "审核记录加载失败");
+      }
+
+      setQueue(queuePayload.queue ?? []);
+      setLogs(logsPayload.logs ?? []);
+    } catch (err) {
+      const message =
+        err instanceof DOMException && err.name === "AbortError"
+          ? "加载超时，请检查 Supabase 配置与网络。"
+          : err instanceof Error
+            ? err.message
+            : "加载失败";
+      setError(message);
+    } finally {
+      window.clearTimeout(timer);
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const filteredQueue = useMemo(() => {
     return queue.filter((item) => {
@@ -20,18 +70,50 @@ export default function AdminPage() {
     });
   }, [queue, riskFilter]);
 
-  function updateStatus(id: string, status: QueueStatus) {
-    setQueue((current) => current.map((item) => (item.id === id ? { ...item, status } : item)));
-    setLogs((current) => [
-      {
-        id: `log-${Date.now()}`,
-        actor: "当前用户",
-        action: status === "通过" ? "一键通过" : "一键驳回",
-        target: id,
-        time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
-      },
-      ...current,
-    ]);
+  async function updateStatus(id: string, status: QueueStatus) {
+    if (status === "待审核") {
+      return;
+    }
+
+    setReviewingId(id);
+    setError("");
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const response = await fetch("/api/admin/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+        signal: controller.signal,
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        queueItem?: QueueItem;
+        log?: OperationLog;
+      };
+
+      if (!response.ok || !payload.ok || !payload.queueItem || !payload.log) {
+        throw new Error(payload.message ?? "审核失败");
+      }
+
+      setQueue((current) => current.map((item) => (item.id === id ? payload.queueItem! : item)));
+      setLogs((current) => [payload.log!, ...current]);
+    } catch (err) {
+      const message =
+        err instanceof DOMException && err.name === "AbortError"
+          ? "审核请求超时。"
+          : err instanceof Error
+            ? err.message
+            : "审核失败";
+      setError(message);
+    } finally {
+      window.clearTimeout(timer);
+      setReviewingId(null);
+    }
   }
 
   return (
@@ -41,12 +123,16 @@ export default function AdminPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规风控运营台</h2>
-            <p className="mt-2 text-sm text-slate-500">按风险分级筛选申报，批量复核，一键通过或驳回，并记录处置日志。</p>
+            <p className="mt-2 text-sm text-slate-500">按风险分级筛选申报，一键通过或驳回，审核记录写入 Supabase。</p>
           </div>
           <Link href="/admin/rules" className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
             打开规则配置
           </Link>
         </div>
+
+        {error ? (
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+        ) : null}
 
         <div className="mt-6 flex flex-wrap gap-2">
           {(["全部", "低", "中", "高"] as const).map((item) => (
@@ -58,6 +144,16 @@ export default function AdminPage() {
               {item} 风险
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void loadData();
+            }}
+            className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:text-slate-900"
+          >
+            刷新
+          </button>
         </div>
 
         <div className="sysu-card mt-6 overflow-hidden">
@@ -69,52 +165,150 @@ export default function AdminPage() {
             <span>操作</span>
           </div>
           <div className="divide-y divide-slate-100 bg-white">
-            {filteredQueue.map((item) => (
-              <div key={item.id} className="grid grid-cols-[1.4fr_0.7fr_0.7fr_0.8fr_1fr] gap-4 px-5 py-4 text-sm">
-                <div>
-                  <p className="font-semibold text-slate-950">{item.projectName}</p>
-                  <p className="mt-1 text-slate-500">{item.owner}</p>
-                  <p className="mt-1 text-slate-400">{item.category}</p>
+            {loading ? (
+              <p className="px-5 py-8 text-sm text-slate-500">正在加载队列…</p>
+            ) : filteredQueue.length === 0 ? (
+              <p className="px-5 py-8 text-sm text-slate-500">暂无申报记录。</p>
+            ) : (
+              filteredQueue.map((item) => (
+                <div key={item.id} className="grid grid-cols-[1.4fr_0.7fr_0.7fr_0.8fr_1fr] gap-4 px-5 py-4 text-sm">
+                  <div>
+                    <Link
+                      href={`/report/${item.id}`}
+                      className="font-semibold text-slate-950 underline-offset-2 transition hover:text-[var(--accent-green)] hover:underline"
+                    >
+                      {item.projectName}
+                    </Link>
+                    <p className="mt-1 text-slate-500">{item.owner}</p>
+                    <p className="mt-1 text-slate-400">{item.category || "—"}</p>
+                    <Link
+                      href={`/report/${item.id}`}
+                      className="mt-2 inline-block text-xs font-medium text-[var(--accent-green)] transition hover:underline"
+                    >
+                      查看风险评估书 →
+                    </Link>
+                  </div>
+                  <div className="flex items-start">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+                      {item.risk}
+                    </span>
+                  </div>
+                  <div className="font-medium text-slate-700">{item.status}</div>
+                  <div className="text-slate-500">{item.submittedAt}</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={reviewingId === item.id || item.status !== "待审核"}
+                      onClick={() => updateStatus(item.id, "通过")}
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      通过
+                    </button>
+                    <button
+                      type="button"
+                      disabled={reviewingId === item.id || item.status !== "待审核"}
+                      onClick={() => updateStatus(item.id, "驳回")}
+                      className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      驳回
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-start">
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                    {item.risk}
-                  </span>
-                </div>
-                <div className="font-medium text-slate-700">{item.status}</div>
-                <div className="text-slate-500">{item.submittedAt}</div>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => updateStatus(item.id, "通过")} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:bg-slate-50">通过</button>
-                  <button onClick={() => updateStatus(item.id, "驳回")} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:bg-slate-50">驳回</button>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </section>
 
       <aside className="space-y-6">
         <div className="sysu-card p-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">批处理面板</p>
-          <div className="mt-4 space-y-3 text-sm leading-6 text-slate-500">
-            <p>高风险内容会优先出现，帮助老师和财务人员快速定位。</p>
-            <p>当前版本使用本地状态模拟一键审批，后端接入后可直接改成真实提交。</p>
-            <p>操作日志会保留最近动作，便于追踪谁在什么时间做了处理。</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">字段定义</p>
+          <details className="mt-4 group">
+            <summary className="cursor-pointer text-sm font-medium text-slate-900 marker:content-none [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">
+                查看申报队列字段说明
+                <span className="text-slate-400 transition group-open:rotate-180">▾</span>
+              </span>
+            </summary>
+            <dl className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+              {adminQueueFieldDefinitions.map((item) => (
+                <div key={item.key}>
+                  <dt className="text-sm font-semibold text-slate-800">{item.label}</dt>
+                  <dd className="mt-1 text-sm leading-6 text-slate-500">{item.definition}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+          <details className="mt-3 group">
+            <summary className="cursor-pointer text-sm font-medium text-slate-900 marker:content-none [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">
+                查看风险分级说明
+                <span className="text-slate-400 transition group-open:rotate-180">▾</span>
+              </span>
+            </summary>
+            <dl className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+              {adminRiskFilterDefinitions.map((item) => (
+                <div key={item.key}>
+                  <dt className="text-sm font-semibold text-slate-800">{item.label} 风险</dt>
+                  <dd className="mt-1 text-sm leading-6 text-slate-500">{item.definition}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+          <details className="mt-3 group">
+            <summary className="cursor-pointer text-sm font-medium text-slate-900 marker:content-none [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">
+                查看审核记录字段说明
+                <span className="text-slate-400 transition group-open:rotate-180">▾</span>
+              </span>
+            </summary>
+            <dl className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+              {adminAuditLogFieldDefinitions.map((item) => (
+                <div key={item.key}>
+                  <dt className="text-sm font-semibold text-slate-800">{item.label}</dt>
+                  <dd className="mt-1 text-sm leading-6 text-slate-500">{item.definition}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">数据实体</p>
+            <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-500">
+              {adminEntityDefinitions.map((item) => (
+                <li key={item.name}>
+                  <strong className="text-slate-700">{item.name}</strong> — {item.description}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
         <div className="sysu-card p-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">操作日志</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">审核记录</p>
           <div className="mt-4 space-y-3">
-            {logs.map((item) => (
-              <div key={item.id} className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700">
-                <div className="flex items-center justify-between gap-2">
-                  <strong>{item.actor}</strong>
-                  <span className="text-slate-400">{item.time}</span>
+            {loading ? (
+              <p className="text-sm text-slate-500">加载中…</p>
+            ) : logs.length === 0 ? (
+              <p className="text-sm text-slate-500">暂无审核记录。</p>
+            ) : (
+              logs.map((item) => (
+                <div key={item.id} className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700">
+                  <div className="flex items-center justify-between gap-2">
+                    <strong>{item.actor}</strong>
+                    <span className="text-slate-400">{item.time}</span>
+                  </div>
+                  <p className="mt-1">
+                    {item.action} · {item.target}
+                  </p>
+                  <Link
+                    href={`/report/${item.submissionId}`}
+                    className="mt-2 inline-block text-xs font-medium text-[var(--accent-green)] transition hover:underline"
+                  >
+                    打开对应风险评估书 →
+                  </Link>
                 </div>
-                <p className="mt-1">{item.action} · {item.target}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </aside>

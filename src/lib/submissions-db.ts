@@ -1,0 +1,256 @@
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import type { AuditRecordRow, AuditResult, SubmissionRow } from "@/lib/supabase/types";
+import { REVIEW_LABEL_TO_RESULT, STATUS_DB_TO_LABEL, reviewActionLabel } from "@/lib/review-status";
+import {
+  defaultRiskRows,
+  type OperationLog,
+  type QueueItem,
+  type ReportData,
+  type ReportFinding,
+  type RiskRow,
+} from "@/lib/site-data";
+
+export type SubmissionPayload = {
+  projectName: string;
+  projectPeriod: string;
+  amount: string;
+  notes?: string;
+  owner?: string;
+  category?: string;
+};
+
+function formatSubmittedAt(iso: string) {
+  const date = new Date(iso);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  const time = date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+
+  if (date >= startOfToday) {
+    return `今天 ${time}`;
+  }
+  if (date >= startOfYesterday) {
+    return `昨天 ${time}`;
+  }
+  return date.toLocaleString("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatLogTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function asRiskRows(value: unknown): RiskRow[] {
+  return Array.isArray(value) ? (value as RiskRow[]) : [];
+}
+
+function asFindings(value: unknown): ReportFinding[] {
+  return Array.isArray(value) ? (value as ReportFinding[]) : [];
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function rowToReport(row: SubmissionRow): ReportData {
+  return {
+    id: row.id,
+    projectName: row.project_name,
+    projectPeriod: row.project_period,
+    fundCategory: row.category,
+    amount: row.amount,
+    conclusion: row.conclusion ?? "",
+    riskScore: row.risk_score,
+    summary: row.summary ?? "",
+    materials: [],
+    riskRows: asRiskRows(row.risk_rows).length ? asRiskRows(row.risk_rows) : defaultRiskRows,
+    findings: asFindings(row.findings),
+    recommendations: asStringArray(row.recommendations),
+    aiNotes: asStringArray(row.ai_notes),
+  };
+}
+
+function rowToQueueItem(row: SubmissionRow): QueueItem {
+  return {
+    id: row.id,
+    projectName: row.project_name,
+    risk: row.risk_score,
+    status: STATUS_DB_TO_LABEL[row.status],
+    owner: row.owner,
+    submittedAt: formatSubmittedAt(row.submitted_at),
+    category: row.category,
+  };
+}
+
+function rowToOperationLog(row: AuditRecordRow): OperationLog {
+  const resultLabel = row.result === "approved" ? "通过" : "驳回";
+  return {
+    id: row.id,
+    submissionId: row.submission_id,
+    actor: row.actor_name,
+    action: row.action,
+    target: `${row.project_name}（${row.submission_id}）· ${resultLabel}`,
+    time: formatLogTime(row.created_at),
+  };
+}
+
+function defaultFindings(): ReportFinding[] {
+  return [
+    { title: "凭证完整性", level: "中", detail: "本平台不存储上传文件，风控以申报字段与规则引擎为主。" },
+    { title: "金额合规", level: "低", detail: "申报金额将传入规则引擎进行限额与一致性比对。" },
+    { title: "Agent 接口", level: "低", detail: "已对接 /api/reports/:id 与 /api/agent/review。" },
+  ];
+}
+
+export async function listRecentReports(limit = 2) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("*")
+    .order("submitted_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as SubmissionRow[]).map(rowToReport);
+}
+
+export async function listQueueItems() {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("*")
+    .order("submitted_at", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as SubmissionRow[]).map(rowToQueueItem);
+}
+
+export async function listAuditLogs(limit = 50) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("audit_records")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as AuditRecordRow[]).map(rowToOperationLog);
+}
+
+export async function getReportById(id: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("submissions").select("*").eq("id", id).maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return rowToReport(data as SubmissionRow);
+}
+
+export async function createSubmission(payload: SubmissionPayload) {
+  const id = `2026-${Date.now().toString().slice(-6)}`;
+  const summary = payload.notes?.trim()
+    ? payload.notes.trim()
+    : "系统已接收合规申报，正在等待 Agent 风控评估与人工复核。";
+
+  const row = {
+    id,
+    project_name: payload.projectName.trim(),
+    project_period: payload.projectPeriod.trim(),
+    amount: payload.amount.trim(),
+    notes: payload.notes?.trim() || null,
+    owner: payload.owner?.trim() || "软件工程学院 申报人",
+    category: payload.category?.trim() || "",
+    risk_score: 28,
+    status: "pending" as const,
+    summary,
+    conclusion: "已生成风控初审结论，建议人工复核后归档。",
+    risk_rows: defaultRiskRows,
+    findings: defaultFindings(),
+    recommendations: ["补齐留白凭证后提交终审", "特殊合规条款请先在规则页维护"],
+    ai_notes: ["Agent 风控结果可回写报告。", "提交后进入风控报告页与运营队列。"],
+  };
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("submissions").insert(row).select("*").single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return rowToReport(data as SubmissionRow);
+}
+
+export async function reviewSubmission(id: string, result: AuditResult, actorName = "运营人员") {
+  const supabase = getSupabaseAdmin();
+
+  const { data: existing, error: fetchError } = await supabase.from("submissions").select("*").eq("id", id).maybeSingle();
+
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+
+  if (!existing) {
+    throw new Error("未找到该申报记录。");
+  }
+
+  const submission = existing as SubmissionRow;
+  const status = result;
+
+  const { data: updated, error: updateError } = await supabase
+    .from("submissions")
+    .update({ status, reviewed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  const { data: auditRow, error: auditError } = await supabase
+    .from("audit_records")
+    .insert({
+      submission_id: id,
+      project_name: submission.project_name,
+      amount: submission.amount,
+      risk_score: submission.risk_score,
+      result,
+      action: reviewActionLabel(result),
+      actor_name: actorName,
+    })
+    .select("*")
+    .single();
+
+  if (auditError) {
+    throw new Error(auditError.message);
+  }
+
+  return {
+    queueItem: rowToQueueItem(updated as SubmissionRow),
+    log: rowToOperationLog(auditRow as AuditRecordRow),
+  };
+}
+
+export function parseReviewResult(status: "通过" | "驳回") {
+  return REVIEW_LABEL_TO_RESULT[status];
+}

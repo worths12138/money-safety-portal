@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
-import { saveSubmission } from "@/lib/report-store";
+import { createSubmission, type SubmissionPayload } from "@/lib/submissions-db";
 
 export async function POST(request: Request) {
+  const configError = ensureSupabaseConfigured();
+  if (configError) {
+    return configError;
+  }
+
   const limited = rateLimit(request, "submissions", 10, 60_000);
   if (!limited.allowed) {
     return NextResponse.json(
@@ -12,11 +18,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const payload = await withTimeout(request.json(), 8_000);
-    const report = await withTimeout(
-      Promise.resolve(saveSubmission(payload as Parameters<typeof saveSubmission>[0])),
-      8_000,
-    );
+    const payload = (await withTimeout(request.json(), 8_000)) as SubmissionPayload;
+    const report = await withTimeout(createSubmission(payload), 8_000);
 
     return NextResponse.json({
       ok: true,
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { ok: false, message: "提交失败，请检查字段后重试。" },
+      { ok: false, message: error instanceof Error ? error.message : "提交失败，请检查字段后重试。" },
       { status: 400 },
     );
   }
