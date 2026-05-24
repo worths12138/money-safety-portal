@@ -39,6 +39,10 @@ import {
   buildSubmissionAuditMessages,
   SUBMISSION_AUDIT_SYSTEM,
 } from "@/lib/reimbursement-audit-prompts";
+import {
+  loadServerMaterials,
+  saveServerMaterials,
+} from "@/lib/report-material-cache-server";
 
 export type AgentReviewInput = {
   reportId: string;
@@ -69,7 +73,15 @@ export async function runAgentReview({
   }
 
   const submission = existing as SubmissionRow;
-  const visionMaterials = materials?.length ? filterVisionMaterials(materials) : [];
+
+  if (materials?.length) {
+    saveServerMaterials(reportId, materials);
+  }
+
+  const cachedMaterials = loadServerMaterials(reportId);
+  const usedCachedMaterials = Boolean(!materials?.length && cachedMaterials?.length);
+  const effectiveMaterials = materials?.length ? materials : cachedMaterials ?? undefined;
+  const visionMaterials = effectiveMaterials?.length ? filterVisionMaterials(effectiveMaterials) : [];
 
   let markdown: string;
   let amountRecon: ReturnType<typeof compareDeclaredAndVoucher> = null;
@@ -100,8 +112,8 @@ export async function runAgentReview({
       maxTokens: 4096,
     });
 
-    if (materials?.length) {
-      const prepared = await prepareMaterialsForAudit(materials);
+    if (effectiveMaterials?.length) {
+      const prepared = await prepareMaterialsForAudit(effectiveMaterials);
       const imageExtractions =
         prepared.images.length > 0 ? await extractAmountsFromImages(prepared.images) : [];
       const voucherSummary = summarizeVoucherAmounts({
@@ -168,8 +180,10 @@ export async function runAgentReview({
 
   const modeNote =
     visionMaterials.length > 0
-      ? `由智谱 ${ZHIPU_MODEL_LABEL} 对 ${visionMaterials.length} 份凭证进行多模态识图审核。`
-      : `由智谱 ${ZHIPU_MODEL_LABEL} 基于申报字段与规则生成（未上传可识图凭证）。`;
+      ? usedCachedMaterials
+        ? `由智谱 ${ZHIPU_MODEL_LABEL} 对服务端暂存凭证（${visionMaterials.length} 份）重新多模态识图审核。`
+        : `由智谱 ${ZHIPU_MODEL_LABEL} 对 ${visionMaterials.length} 份凭证进行多模态识图审核。`
+      : `由智谱 ${ZHIPU_MODEL_LABEL} 基于申报字段与规则生成（未上传可识图凭证或暂存已过期）。`;
 
   const cleanPreview = sanitizeReportText(markdown);
   const preview =

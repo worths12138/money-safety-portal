@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { RiskAmountPieChart } from "@/components/RiskAmountPieChart";
 import { exportReportPdf } from "@/lib/export-report-pdf";
 import { formatConclusionForDisplay, formatSummaryForDisplay } from "@/lib/parse-audit-report";
@@ -20,6 +20,11 @@ import {
 } from "@/lib/risk-score";
 import { defaultRules } from "@/lib/site-data";
 import { defaultRiskRows, type ReportData, reportMaterialTypes } from "@/lib/site-data";
+import {
+  type MaterialCacheInfo,
+  MATERIAL_CACHE_TTL_SEC,
+  reportHadVisionAudit,
+} from "@/lib/report-material-status";
 
 function loadingReport(id: string): ReportData {
   return {
@@ -46,6 +51,16 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const [isPrinting, setIsPrinting] = useState(false);
   const [exportedAt, setExportedAt] = useState("");
   const [rerunningAgent, setRerunningAgent] = useState(false);
+  const [materialCache, setMaterialCache] = useState<MaterialCacheInfo>({
+    available: false,
+    count: 0,
+    ttlSecondsLeft: 0,
+    fileNames: [],
+  });
+
+  const hadVisionAudit = useMemo(() => reportHadVisionAudit(report.aiNotes ?? []), [report.aiNotes]);
+  const canRerunVision = materialCache.available && materialCache.ttlSecondsLeft > 0;
+  const cacheExpired = hadVisionAudit && !canRerunVision;
 
   useEffect(() => {
     setExportedAt(new Date().toLocaleString("zh-CN"));
@@ -73,8 +88,11 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         }
         return response.json();
       })
-      .then((payload: { report: ReportData }) => {
+      .then((payload: { report: ReportData; materialCache?: MaterialCacheInfo }) => {
         setReport(payload.report);
+        if (payload.materialCache) {
+          setMaterialCache(payload.materialCache);
+        }
         setMessage("风控报告已加载完成。");
       })
       .catch((error: unknown) => {
@@ -93,11 +111,34 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     void loadReport();
   }, [loadReport]);
 
+  useEffect(() => {
+    if (!materialCache.available) return;
+    const timer = window.setInterval(() => {
+      setMaterialCache((prev) => {
+        if (!prev.available) return prev;
+        const next = prev.ttlSecondsLeft - 1;
+        if (next <= 0) {
+          return { ...prev, available: false, ttlSecondsLeft: 0 };
+        }
+        return { ...prev, ttlSecondsLeft: next };
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [materialCache.available]);
+
   const handleRerunAgent = useCallback(async () => {
+    if (cacheExpired) {
+      setMessage(`凭证暂存已过期（${MATERIAL_CACHE_TTL_SEC} 秒），请返回预审核页重新上传后再评估。`);
+      return;
+    }
     setRerunningAgent(true);
-    setMessage("正在调用 GLM-5V-Turbo 重新评估（约 30–60 秒）…");
+    setMessage(
+      canRerunVision
+        ? `正在使用服务端暂存的 ${materialCache.count} 份凭证重新识图评估（约 30–120 秒）…`
+        : "正在调用 GLM-5V-Turbo 重新评估（约 30–60 秒）…",
+    );
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 90_000);
+    const timer = window.setTimeout(() => controller.abort(), MATERIAL_CACHE_TTL_SEC * 1000);
     try {
       const response = await fetch("/api/agent/review", {
         method: "POST",
@@ -105,7 +146,12 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         body: JSON.stringify({ reportId: id }),
         signal: controller.signal,
       });
-      const payload = (await response.json()) as { ok?: boolean; message?: string; report?: ReportData };
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        report?: ReportData;
+        materialCache?: MaterialCacheInfo;
+      };
       if (!response.ok || !payload.ok) {
         throw new Error(payload.message ?? "Agent 评估失败");
       }
@@ -113,6 +159,9 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         setReport(payload.report);
       } else {
         await loadReport();
+      }
+      if (payload.materialCache) {
+        setMaterialCache(payload.materialCache);
       }
       setMessage(payload.message ?? "Agent 评估已完成。");
     } catch (error) {
@@ -127,7 +176,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
       window.clearTimeout(timer);
       setRerunningAgent(false);
     }
-  }, [id, loadReport]);
+  }, [cacheExpired, canRerunVision, id, loadReport, materialCache.count]);
 
   const riskRows = report.riskRows?.length ? report.riskRows : defaultRiskRows;
   const auditMarkdown =
@@ -174,15 +223,34 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/report/{id}</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">大创报销经费合规风控报告</h2>
             <p className="mt-2 text-sm text-slate-500">{message}</p>
+            {canRerunVision ? (
+              <p className="mt-1 text-xs text-emerald-700">
+                凭证暂存可用：{materialCache.count} 份，剩余 {materialCache.ttlSecondsLeft} 秒后可重新识图评估
+              </p>
+            ) : cacheExpired ? (
+              <p className="mt-1 text-xs text-amber-800">
+                凭证暂存已过期（提交后 {MATERIAL_CACHE_TTL_SEC} 秒内可重评）。请{" "}
+                <Link href="/preaudit" className="font-semibold underline">
+                  返回预审核
+                </Link>{" "}
+                重新上传凭证。
+              </p>
+            ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
             <button
               type="button"
               onClick={handleRerunAgent}
-              disabled={rerunningAgent}
+              disabled={rerunningAgent || cacheExpired}
               className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {rerunningAgent ? "Agent 评估中…" : "重新 Agent 评估"}
+              {rerunningAgent
+                ? "Agent 评估中…"
+                : canRerunVision
+                  ? "重新识图评估"
+                  : cacheExpired
+                    ? "暂存已过期"
+                    : "重新 Agent 评估"}
             </button>
             <button
               type="button"

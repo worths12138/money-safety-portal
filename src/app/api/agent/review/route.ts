@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runAgentReview, type AgentReviewInput } from "@/lib/agent-review";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
+import { getMaterialCacheStatus } from "@/lib/report-material-cache-server";
 import { getReportById } from "@/lib/submissions-db";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
 
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
       riskScore: result.riskScore,
       annotations: result.annotations,
       report,
+      materialCache: getMaterialCacheStatus(result.reportId),
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes("超时")) {

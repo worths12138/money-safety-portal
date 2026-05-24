@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { getClientTimeoutHeader, rateLimit, timeoutResponse, withTimeout } from "@/lib/server-guards";
 import { getReportById } from "@/lib/submissions-db";
+import { getMaterialCacheStatus } from "@/lib/report-material-cache-server";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const configError = ensureSupabaseConfigured();
@@ -25,7 +26,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ ok: false, message: "未找到该风控报告。" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, report });
+    return NextResponse.json({ ok: true, report, materialCache: getMaterialCacheStatus(id) });
   } catch (error) {
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse();
