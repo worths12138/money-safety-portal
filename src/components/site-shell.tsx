@@ -65,7 +65,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       <div className="site-shell-scroll relative z-10 h-screen overflow-y-auto scroll-smooth">
         <header className="site-header no-print sticky top-0 z-[100] backdrop-blur">
           <div className="relative z-[2] flex w-full flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
-            <div className="site-header-brand relative z-[3] flex min-w-0 items-center gap-4">
+            <div className="site-header-brand relative z-[3] flex min-w-0 items-center gap-2 sm:gap-3">
               <Link href="/home" className="site-header-logo relative z-[4] shrink-0" title="中山大学">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -74,7 +74,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
                   className="site-header-logo-img h-10 w-auto max-w-[min(18rem,46vw)] object-contain object-left"
                 />
               </Link>
-              <div className="min-w-0 border-l border-white/25 pl-3 sm:pl-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/api/photos/brand" alt="审盾" className="site-header-brand-icon" />
+              <div className="min-w-0 border-l border-white/25 pl-2 sm:pl-3">
                 <p className="site-header-brand-sub text-xs font-semibold uppercase tracking-[0.24em]">
                   软件工程学院
                 </p>
