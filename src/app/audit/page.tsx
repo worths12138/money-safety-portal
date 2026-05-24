@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function SubmitRedirectPage() {
+export default function AuditRedirectPage() {
   redirect("/preaudit");
 }

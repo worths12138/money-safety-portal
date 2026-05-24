@@ -4,9 +4,21 @@ import { listRecentReports } from "@/lib/submissions-db";
 import { dashboardMetrics, featuredReports, type Metric, type ReportData } from "@/lib/site-data";
 
 export const quickEntrySteps = [
-  { step: "1", title: "填写申报并上传凭证", detail: "在合规申报页提交项目信息与 PDF / Word / 图片凭证。" },
-  { step: "2", title: "自动生成风控报告草稿", detail: "提交后写入数据库并跳转报告页，含风险分与可解释风险表。" },
-  { step: "3", title: "核对后进入人工审核", detail: "运营台可查看队列、打开风险评估书并通过或驳回。" },
+  {
+    step: "1",
+    title: "AI 风控预审",
+    detail: "填写申报总金额与项目信息，上传 PDF / 图片；本地解析 + 图片识图汇总凭据金额。",
+  },
+  {
+    step: "2",
+    title: "自动生成风控报告",
+    detail: "GLM-5V-Turbo 审核并回写风险分、结论、风险表；报告页展示金额饼图与申报/凭据一致性提示。",
+  },
+  {
+    step: "3",
+    title: "运营复核",
+    detail: "管理后台按风险筛选、通过或驳回；规则配置页维护学院合规条款（上限 50 条自动归档）。",
+  },
 ] as const;
 
 export async function getHomeDashboardMetrics(): Promise<Metric[]> {

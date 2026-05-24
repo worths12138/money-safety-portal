@@ -7,22 +7,40 @@ import type { ReactNode } from "react";
 
 const navItems = [
   { href: "/home", label: "首页", match: "/home", shortLabel: "首" },
-  { href: "/submit", label: "合规申报", match: "/submit", shortLabel: "申" },
+  { href: "/preaudit", label: "AI 风控预审", match: "/preaudit", shortLabel: "审" },
   { href: "/report/2026-041", label: "风控报告", match: "/report", shortLabel: "报" },
   { href: "/admin", label: "管理后台", match: "/admin", shortLabel: "管" },
   { href: "/admin/rules", label: "规则配置", match: "/admin/rules", shortLabel: "规" },
 ];
 
+/** 取最长匹配项，避免 /admin/rules 同时点亮 /admin */
+function resolveActiveNavMatch(pathname: string): string | null {
+  const matches = navItems
+    .filter(
+      (item) =>
+        pathname === item.match ||
+        (item.match !== "/" && pathname.startsWith(`${item.match}/`)),
+    )
+    .sort((a, b) => b.match.length - a.match.length);
+  return matches[0]?.match ?? null;
+}
+
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const activeNavMatch = useMemo(
+    () => (pathname ? resolveActiveNavMatch(pathname) : null),
+    [pathname],
+  );
   const isStart = pathname === "/";
   const backgroundImage = useMemo(() => {
     if (isStart) return "/api/photos/start";
     if (!pathname) return "/api/photos/home";
-    if (pathname.startsWith("/admin/rules")) return "/api/photos/rules";
+    if (pathname.startsWith("/admin/rules")) return "/api/photos/last";
     if (pathname.startsWith("/admin")) return "/api/photos/admin";
     if (pathname.startsWith("/report")) return "/api/photos/report";
-    if (pathname.startsWith("/submit")) return "/api/photos/submit";
+    if (pathname.startsWith("/preaudit") || pathname.startsWith("/submit") || pathname.startsWith("/audit")) {
+      return "/api/photos/submit";
+    }
     return "/api/photos/home";
   }, [isStart, pathname]);
   const decorations = useMemo(
@@ -66,7 +84,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
             <nav className="site-header-nav hidden items-center gap-0 md:flex">
               {navItems.map((item) => {
-                const active = pathname === item.match || (item.match !== "/" && pathname.startsWith(item.match));
+                const active = item.match === activeNavMatch;
                 return (
                   <Link
                     key={item.href}
@@ -100,8 +118,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
           </div>
           <main className="relative flex-1 pb-10">{children}</main>
           <footer className="no-print relative mb-2 flex flex-col gap-2 border-t border-slate-200 py-5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-            <p>保留 /api/submit、/api/reports、/api/agent/review、/api/rules 接口占位，方便后端对接。</p>
-            <p>面向大创报销经费的合规与风控场景，支持 Agent 预审、可解释风险项与人工复核闭环。</p>
+            <p>AI 风控预审（/preaudit）：申报总金额、凭据识图、金额一致性校验与风控报告一体化。</p>
+            <p>支持 PDF/图片解析、运营台复核与规则配置；合规风控风险分越高表示风险越大。</p>
           </footer>
         </section>
       </div>

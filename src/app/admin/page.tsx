@@ -123,7 +123,9 @@ export default function AdminPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规风控运营台</h2>
-            <p className="mt-2 text-sm text-slate-500">按风险分级筛选申报，一键通过或驳回，审核记录写入 Supabase。</p>
+            <p className="mt-2 text-sm text-slate-500">
+              按风险分级筛选申报，一键通过或驳回。申报队列与审核记录各最多保留 50 条，超出后自动删除最早历史记录。
+            </p>
           </div>
           <Link href="/admin/rules" className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
             打开规则配置

@@ -86,10 +86,49 @@ create trigger submissions_set_updated_at
   execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
+-- 3b. compliance_rules — 学院可配置合规规则（规则页，驱动 Agent 与 /audit）
+-- ---------------------------------------------------------------------------
+create table if not exists public.compliance_rules (
+  id text primary key default 'default',
+  allowed_categories jsonb not null default '[]'::jsonb,
+  amount_limit text not null default '',
+  deadline text not null default '',
+  special_materials jsonb not null default '[]'::jsonb,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+
+comment on table public.compliance_rules is '合规规则配置单例（id=default），供 /api/rules 与 Agent 审核读取';
+
+drop trigger if exists compliance_rules_set_updated_at on public.compliance_rules;
+create trigger compliance_rules_set_updated_at
+  before update on public.compliance_rules
+  for each row
+  execute function public.set_updated_at();
+
+insert into public.compliance_rules (
+  id,
+  allowed_categories,
+  amount_limit,
+  deadline,
+  special_materials,
+  updated_by
+) values (
+  'default',
+  '["软件订阅", "设备采购", "差旅交通"]'::jsonb,
+  '¥10,000',
+  '2026-06-10 18:00',
+  '["比价单", "签章清单", "会议纪要"]'::jsonb,
+  '系统初始化'
+)
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
 -- 4. Row Level Security（仅服务端 service_role 可读写；anon 默认拒绝）
 -- ---------------------------------------------------------------------------
 alter table public.submissions enable row level security;
 alter table public.audit_records enable row level security;
+alter table public.compliance_rules enable row level security;
 
 -- 不创建面向 anon / authenticated 的策略 → 浏览器直连无法读写
 -- Next.js Route Handler 使用 service_role key 时会绕过 RLS

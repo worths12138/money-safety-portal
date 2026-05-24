@@ -12,7 +12,7 @@ export default function StartPage() {
             大创报销经费合规风控，从这里开始更可追溯
           </h1>
           <p className="mt-4 text-base leading-7 text-slate-600">
-            以合规规则与风险模型为基线，整合凭证采集、Agent 预审与可解释风险表，形成可追溯的大创报销风控入口。
+            凭证识图、申报总金额校验、Agent 风控报告与运营复核一体，形成可追溯的大创报销风控入口。
           </p>
           <div className="mt-8">
             <Link

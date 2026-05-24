@@ -11,6 +11,7 @@ const photoMap: Record<string, string> = {
   report: "u=2741840025,211186196&fm=253&fmt=auto&app=138&f=JPEG.webp",
   admin: "u=3695863600,1253916828&fm=253&fmt=auto&app=120&f=JPEG.webp",
   rules: "u=49911336,582655209&fm=253&fmt=auto&app=138&f=JPEG.webp",
+  last: "last.jpeg",
 };
 
 function contentTypeFor(filename: string) {

@@ -1,6 +1,8 @@
+import { enforceAdminRetention } from "@/lib/submission-retention";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { AuditRecordRow, AuditResult, SubmissionRow } from "@/lib/supabase/types";
 import { REVIEW_LABEL_TO_RESULT, STATUS_DB_TO_LABEL, reviewActionLabel } from "@/lib/review-status";
+import { sanitizeReportFields } from "@/lib/parse-audit-report";
 import {
   defaultRiskRows,
   type OperationLog,
@@ -10,6 +12,12 @@ import {
   type RiskRow,
 } from "@/lib/site-data";
 
+export type SubmissionMaterialPayload = {
+  name: string;
+  type: string;
+  b64: string;
+};
+
 export type SubmissionPayload = {
   projectName: string;
   projectPeriod: string;
@@ -17,6 +25,8 @@ export type SubmissionPayload = {
   notes?: string;
   owner?: string;
   category?: string;
+  materialFiles?: string[];
+  materials?: SubmissionMaterialPayload[];
 };
 
 function formatSubmittedAt(iso: string) {
@@ -58,7 +68,7 @@ function asStringArray(value: unknown): string[] {
 }
 
 function rowToReport(row: SubmissionRow): ReportData {
-  return {
+  return sanitizeReportFields({
     id: row.id,
     projectName: row.project_name,
     projectPeriod: row.project_period,
@@ -71,8 +81,10 @@ function rowToReport(row: SubmissionRow): ReportData {
     riskRows: asRiskRows(row.risk_rows).length ? asRiskRows(row.risk_rows) : defaultRiskRows,
     findings: asFindings(row.findings),
     recommendations: asStringArray(row.recommendations),
-    aiNotes: asStringArray(row.ai_notes),
-  };
+    aiNotes: asStringArray(row.ai_notes).map((n) =>
+      typeof n === "string" ? n.replace(/\*\*/g, "") : n,
+    ),
+  });
 }
 
 function rowToQueueItem(row: SubmissionRow): QueueItem {
@@ -101,9 +113,9 @@ function rowToOperationLog(row: AuditRecordRow): OperationLog {
 
 function defaultFindings(): ReportFinding[] {
   return [
-    { title: "凭证完整性", level: "中", detail: "本平台不存储上传文件，风控以申报字段与规则引擎为主。" },
-    { title: "金额合规", level: "低", detail: "申报金额将传入规则引擎进行限额与一致性比对。" },
-    { title: "Agent 接口", level: "低", detail: "已对接 /api/reports/:id 与 /api/agent/review。" },
+    { title: "凭证完整性", level: "中", detail: "本平台不存储上传文件，Agent 基于申报字段与文件名进行风控。" },
+    { title: "金额合规", level: "低", detail: "申报金额将传入 Agent 与报销规则进行比对。" },
+    { title: "Agent 评估", level: "低", detail: "提交后将由 GLM-5V-Turbo 生成风控报告并回写本页数据。" },
   ];
 }
 
@@ -123,6 +135,8 @@ export async function listRecentReports(limit = 2) {
 }
 
 export async function listQueueItems() {
+  await enforceAdminRetention();
+
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("submissions")
@@ -137,6 +151,8 @@ export async function listQueueItems() {
 }
 
 export async function listAuditLogs(limit = 50) {
+  await enforceAdminRetention();
+
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("audit_records")
@@ -168,9 +184,14 @@ export async function getReportById(id: string) {
 
 export async function createSubmission(payload: SubmissionPayload) {
   const id = `2026-${Date.now().toString().slice(-6)}`;
-  const summary = payload.notes?.trim()
-    ? payload.notes.trim()
-    : "系统已接收合规申报，正在等待 Agent 风控评估与人工复核。";
+  const materialHint =
+    payload.materials && payload.materials.length > 0
+      ? `已上传 ${payload.materials.length} 份凭证，Agent 将进行多模态识图审核。`
+      : payload.materialFiles?.length
+        ? `已登记 ${payload.materialFiles.length} 个文件名（未传文件内容，仅文字风控）。`
+        : "";
+  const summary = [payload.notes?.trim(), materialHint].filter(Boolean).join(" ") ||
+    "系统已接收合规申报，正在等待 Agent 风控评估与人工复核。";
 
   const row = {
     id,
@@ -187,7 +208,7 @@ export async function createSubmission(payload: SubmissionPayload) {
     risk_rows: defaultRiskRows,
     findings: defaultFindings(),
     recommendations: ["补齐留白凭证后提交终审", "特殊合规条款请先在规则页维护"],
-    ai_notes: ["Agent 风控结果可回写报告。", "提交后进入风控报告页与运营队列。"],
+    ai_notes: ["正在等待 GLM-5V-Turbo Agent 生成风控结论…"],
   };
 
   const supabase = getSupabaseAdmin();
@@ -196,6 +217,8 @@ export async function createSubmission(payload: SubmissionPayload) {
   if (error) {
     throw new Error(error.message);
   }
+
+  await enforceAdminRetention();
 
   return rowToReport(data as SubmissionRow);
 }
@@ -244,6 +267,8 @@ export async function reviewSubmission(id: string, result: AuditResult, actorNam
   if (auditError) {
     throw new Error(auditError.message);
   }
+
+  await enforceAdminRetention();
 
   return {
     queueItem: rowToQueueItem(updated as SubmissionRow),

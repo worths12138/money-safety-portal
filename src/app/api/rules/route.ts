@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { defaultRules } from "@/lib/site-data";
+import { getComplianceRules, saveComplianceRules } from "@/lib/compliance-rules";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
-
-let currentRules = defaultRules;
 
 export async function GET(request: Request) {
   const limited = rateLimit(request, "rules-get", 30, 30_000);
@@ -14,7 +12,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rules = await withTimeout(Promise.resolve(currentRules), 5_000);
+    const rules = await withTimeout(getComplianceRules(), 5_000);
     return NextResponse.json({ ok: true, rules });
   } catch (error) {
     if (error instanceof Error && error.message.includes("超时")) {
@@ -35,14 +33,28 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const payload = (await withTimeout(request.json(), 8_000)) as typeof defaultRules;
-    currentRules = payload;
-    return NextResponse.json({ ok: true, message: "规则已保存。", rules: currentRules });
+    const payload = (await withTimeout(request.json(), 8_000)) as {
+      allowedCategories: string[];
+      amountLimit: string;
+      deadline: string;
+      specialMaterials: string[];
+    };
+
+    const rules = await withTimeout(saveComplianceRules(payload), 8_000);
+    const persistHint =
+      rules.storage === "memory"
+        ? "规则已保存（当前未配置 Supabase，仅本次服务运行有效）。"
+        : "规则已保存，将作用于后续 Agent 审核与材料审核。";
+
+    return NextResponse.json({ ok: true, message: persistHint, rules });
   } catch (error) {
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse();
     }
 
-    return NextResponse.json({ ok: false, message: "规则保存失败。" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, message: error instanceof Error ? error.message : "规则保存失败。" },
+      { status: 500 },
+    );
   }
 }

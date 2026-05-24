@@ -1,7 +1,27 @@
 import { NextResponse } from "next/server";
+import { runAgentReview } from "@/lib/agent-review";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
-import { createSubmission, type SubmissionPayload } from "@/lib/submissions-db";
+import { createSubmission, getReportById, type SubmissionPayload } from "@/lib/submissions-db";
+
+export const maxDuration = 300;
+
+const MAX_MATERIALS = 10;
+const MAX_MATERIAL_BYTES = 20 * 1024 * 1024;
+
+function validateMaterials(materials: SubmissionPayload["materials"]) {
+  if (!materials?.length) return materials;
+  if (materials.length > MAX_MATERIALS) {
+    throw new Error(`凭证最多上传 ${MAX_MATERIALS} 个文件。`);
+  }
+  for (const m of materials) {
+    const size = Math.ceil((m.b64.length * 3) / 4);
+    if (size > MAX_MATERIAL_BYTES) {
+      throw new Error(`文件 ${m.name} 超过 20MB 限制。`);
+    }
+  }
+  return materials;
+}
 
 export async function POST(request: Request) {
   const configError = ensureSupabaseConfigured();
@@ -9,7 +29,7 @@ export async function POST(request: Request) {
     return configError;
   }
 
-  const limited = rateLimit(request, "submissions", 10, 60_000);
+  const limited = rateLimit(request, "submissions", 6, 60_000);
   if (!limited.allowed) {
     return NextResponse.json(
       { ok: false, message: "访问过快，请稍后再试。" },
@@ -18,13 +38,42 @@ export async function POST(request: Request) {
   }
 
   try {
-    const payload = (await withTimeout(request.json(), 8_000)) as SubmissionPayload;
-    const report = await withTimeout(createSubmission(payload), 8_000);
+    const payload = (await withTimeout(request.json(), 30_000)) as SubmissionPayload;
+    validateMaterials(payload.materials);
+
+    const materialFiles =
+      payload.materialFiles ??
+      payload.materials?.map((m) => m.name) ??
+      [];
+
+    const report = await withTimeout(createSubmission({ ...payload, materialFiles }), 8_000);
+
+    let message = "申报成功，Agent 正在识图并生成风控报告…";
+    try {
+      await withTimeout(
+        runAgentReview({
+          reportId: report.id,
+          materialFiles,
+          materials: payload.materials,
+        }),
+        240_000,
+        "Agent 识图评估超时，请稍后在报告页重新评估（凭证较多时需更长时间）。",
+      );
+      message = payload.materials?.length
+        ? "申报成功，Agent 已完成凭证识图与风控评估。"
+        : "申报成功，Agent 已完成风控评估。";
+    } catch (agentError) {
+      const agentMessage = agentError instanceof Error ? agentError.message : "Agent 评估失败";
+      message = `申报已入库，但 Agent 评估未完成：${agentMessage}`;
+    }
+
+    const latest = (await getReportById(report.id)) ?? report;
 
     return NextResponse.json({
       ok: true,
       id: report.id,
-      message: "申报成功，已生成风控报告草稿。",
+      message,
+      report: latest,
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes("超时")) {

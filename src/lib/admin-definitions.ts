@@ -81,10 +81,10 @@ export const adminAuditLogFieldDefinitions: AdminFieldDefinition[] = [
 export const adminEntityDefinitions = [
   {
     name: "申报单（submissions）",
-    description: "学生提交的合规申报及当前审核状态；不含上传文件，仅存文字与风控结论。",
+    description: "学生提交的合规申报及当前审核状态；不含上传文件，仅存文字与风控结论。运营台最多保留 50 条，超出自动删除最早申报。",
   },
   {
     name: "审核记录（audit_records）",
-    description: "每次通过/驳回产生一条只增不改的日志，保存审核时的项目名、金额、风险分与结果快照。",
+    description: "每次通过/驳回产生一条只增不改的日志，保存审核时的项目名、金额、风险分与结果快照。最多保留 50 条，超出自动删除最早记录。",
   },
 ] as const;

@@ -17,11 +17,11 @@ export default async function Home() {
             中山大学软件工程学院大创报销经费合规风控，让核验更可信。
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            面向大创报销场景，覆盖合规申报、风控报告与规则配置，支持 Agent 预审与风险分级。
+            面向大创报销场景：凭证多模态识图、申报总金额与凭据自动比对、可解释风控报告与运营复核闭环。
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/submit" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-              发起合规申报
+            <Link href="/preaudit" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
+              AI 风控预审
             </Link>
             {latestReport ? (
               <Link
@@ -67,7 +67,7 @@ export default async function Home() {
             </div>
             <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">上传凭证后自动生成风控报告草稿</p>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              填写申报并上传凭证后，系统将立即生成可查看、可导出的风险评估书草稿，并进入运营审核队列。
+              提交后自动完成 PDF/图片金额识别与 Agent 风控，生成含风险分与金额占比的报告草稿，并进入运营审核队列。
             </p>
 
             <ol className="mt-5 space-y-3">
@@ -86,7 +86,7 @@ export default async function Home() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                href="/submit"
+                href="/preaudit"
                 className="border border-slate-900 bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 立即上传并生成草稿
@@ -118,7 +118,7 @@ export default async function Home() {
             {recentReports.length === 0 ? (
               <div className="rounded-md border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
                 暂无申报记录。
-                <Link href="/submit" className="mt-2 block font-medium text-[var(--accent-green)] hover:underline">
+                <Link href="/preaudit" className="mt-2 block font-medium text-[var(--accent-green)] hover:underline">
                   去提交第一份合规申报 →
                 </Link>
               </div>
@@ -144,7 +144,7 @@ export default async function Home() {
                       打开风控报告草稿
                     </Link>
                     <Link
-                      href="/submit"
+                      href="/preaudit"
                       className="border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
                     >
                       再提交一份

@@ -2,7 +2,23 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
+import { RiskAmountPieChart } from "@/components/RiskAmountPieChart";
 import { exportReportPdf } from "@/lib/export-report-pdf";
+import { formatConclusionForDisplay, formatSummaryForDisplay } from "@/lib/parse-audit-report";
+import {
+  adjustRiskScoreForAmountMismatch,
+  parseAmountReconFromAiNotes,
+} from "@/lib/amount-reconciliation";
+import {
+  adjustRiskScoreForDeclaredAmount,
+  detectAmountAnomaly,
+  parseAmountLimitYuan,
+  parseDeclaredAmountYuan,
+  RISK_SCORE_DEFINITION,
+  riskLevelFromScore,
+  riskScoreRingColor,
+} from "@/lib/risk-score";
+import { defaultRules } from "@/lib/site-data";
 import { defaultRiskRows, type ReportData, reportMaterialTypes } from "@/lib/site-data";
 
 function loadingReport(id: string): ReportData {
@@ -29,6 +45,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const [message, setMessage] = useState("正在拉取风控报告...");
   const [isPrinting, setIsPrinting] = useState(false);
   const [exportedAt, setExportedAt] = useState("");
+  const [rerunningAgent, setRerunningAgent] = useState(false);
 
   useEffect(() => {
     setExportedAt(new Date().toLocaleString("zh-CN"));
@@ -44,11 +61,11 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     });
   }, [id, report.projectName]);
 
-  useEffect(() => {
+  const loadReport = useCallback(() => {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 8000);
+    const timer = window.setTimeout(() => controller.abort(), 12_000);
 
-    fetch(`/api/reports/${id}`, { signal: controller.signal })
+    return fetch(`/api/reports/${id}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
           const payload = (await response.json().catch(() => ({}))) as { message?: string };
@@ -61,20 +78,71 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         setMessage("风控报告已加载完成。");
       })
       .catch((error: unknown) => {
-        setMessage(error instanceof DOMException && error.name === "AbortError" ? "风控报告请求超时。" : error instanceof Error ? error.message : "风控报告加载失败。");
+        setMessage(
+          error instanceof DOMException && error.name === "AbortError"
+            ? "风控报告请求超时。"
+            : error instanceof Error
+              ? error.message
+              : "风控报告加载失败。",
+        );
       })
       .finally(() => window.clearTimeout(timer));
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
   }, [id]);
 
+  useEffect(() => {
+    void loadReport();
+  }, [loadReport]);
+
+  const handleRerunAgent = useCallback(async () => {
+    setRerunningAgent(true);
+    setMessage("正在调用 GLM-5V-Turbo 重新评估（约 30–60 秒）…");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 90_000);
+    try {
+      const response = await fetch("/api/agent/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId: id }),
+        signal: controller.signal,
+      });
+      const payload = (await response.json()) as { ok?: boolean; message?: string; report?: ReportData };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "Agent 评估失败");
+      }
+      if (payload.report) {
+        setReport(payload.report);
+      } else {
+        await loadReport();
+      }
+      setMessage(payload.message ?? "Agent 评估已完成。");
+    } catch (error) {
+      setMessage(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Agent 评估超时，请稍后重试。"
+          : error instanceof Error
+            ? error.message
+            : "Agent 评估失败。",
+      );
+    } finally {
+      window.clearTimeout(timer);
+      setRerunningAgent(false);
+    }
+  }, [id, loadReport]);
+
   const riskRows = report.riskRows?.length ? report.riskRows : defaultRiskRows;
+  const auditMarkdown =
+    report.aiNotes?.find((note) => note.includes("##") || note.length > 400) ?? report.aiNotes?.join("\n");
+  const amountRecon = parseAmountReconFromAiNotes(report.aiNotes ?? []);
+  let effectiveRiskScore = adjustRiskScoreForDeclaredAmount(report.amount || "", report.riskScore, {
+    amountLimitYuan: parseAmountLimitYuan(defaultRules.amountLimit),
+  });
+  effectiveRiskScore = adjustRiskScoreForAmountMismatch(effectiveRiskScore, amountRecon);
+  const amountAnomaly = detectAmountAnomaly(parseDeclaredAmountYuan(report.amount || ""));
+  const displayConclusion = formatConclusionForDisplay(report.conclusion || "", effectiveRiskScore);
+  const displaySummary = formatSummaryForDisplay(report.summary || "");
 
   return (
-    <div className="report-print-root mx-auto flex w-full max-w-3xl flex-col gap-8 print:max-w-none">
+    <div className="report-print-root mx-auto flex w-full max-w-6xl flex-col gap-8 print:max-w-none">
       <section className="report-print-section sysu-card px-7 py-9 print:shadow-none">
         <div className="hidden print:block report-print-block border-0 px-0 py-0 mb-6">
           <p className="text-xs uppercase tracking-[0.3em] text-slate-500">中山大学软件工程学院 · 大创报销经费合规风控</p>
@@ -110,6 +178,14 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
           <div className="flex shrink-0 flex-wrap gap-3">
             <button
               type="button"
+              onClick={handleRerunAgent}
+              disabled={rerunningAgent}
+              className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {rerunningAgent ? "Agent 评估中…" : "重新 Agent 评估"}
+            </button>
+            <button
+              type="button"
               onClick={handleExportPdf}
               className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
             >
@@ -123,15 +199,57 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
         <div className="mt-8 flex flex-col gap-5 print:mt-0">
           <div className="report-print-block sysu-card min-h-[200px] px-7 py-8 print:min-h-0">
-            <p className="text-sm uppercase tracking-[0.3em] text-slate-500">总体结论</p>
-            <p className="mt-4 text-2xl font-semibold leading-snug text-slate-950 print:text-lg">{report.conclusion || "风控评估生成中"}</p>
-            <p className="mt-5 text-sm leading-8 text-slate-500 print:leading-6">{report.summary}</p>
+            <p className="text-xs font-medium uppercase tracking-[0.28em] text-slate-500">总体结论</p>
+            <p className="mt-3 text-base font-semibold leading-relaxed text-slate-950 sm:text-lg print:text-base">
+              {displayConclusion || "风控评估生成中"}
+            </p>
+            <p className="mt-4 text-[13px] leading-7 text-slate-600 print:text-sm print:leading-6">{displaySummary}</p>
           </div>
+          {amountAnomaly ? (
+            <div className="report-print-block rounded-md border border-red-200 bg-red-50 px-5 py-4 text-sm leading-7 text-red-900">
+              <p className="font-semibold">金额异常告警</p>
+              <p className="mt-1">{amountAnomaly.message}</p>
+              {report.riskScore < effectiveRiskScore ? (
+                <p className="mt-2 text-xs text-red-800/90">
+                  系统已根据申报金额将风险分由 {report.riskScore} 上调至 {effectiveRiskScore}（Agent 原始分偏低时已自动校正）。
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {amountRecon && amountRecon.severity !== "ok" ? (
+            <div
+              className={`report-print-block rounded-md border px-5 py-4 text-sm leading-7 ${
+                amountRecon.severity === "critical"
+                  ? "border-amber-300 bg-amber-50 text-amber-950"
+                  : "border-amber-200 bg-amber-50/80 text-amber-900"
+              }`}
+            >
+              <p className="font-semibold">申报总金额与凭据金额不一致</p>
+              <p className="mt-1">{amountRecon.message}</p>
+              {amountRecon.voucherYuan > 0 ? (
+                <p className="mt-2 text-xs opacity-90">
+                  凭据识别合计约 ¥{amountRecon.voucherYuan.toLocaleString("zh-CN")}（置信度：
+                  {amountRecon.voucherSummary.confidence}），申报总金额 {report.amount || "—"}。
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2 print:grid-cols-2">
-            <ScoreCard label="合规风险分" value={`${report.riskScore}`} tone={report.riskScore >= 60 ? "high" : "low"} score={report.riskScore} />
-            <ScoreCard label="项目金额" value={report.amount || ""} tone="neutral" />
+            <ScoreCard
+              label="合规风控风险分"
+              value={`${effectiveRiskScore}`}
+              score={effectiveRiskScore}
+              riskLevel={riskLevelFromScore(effectiveRiskScore)}
+            />
+            <ScoreCard label="项目金额" value={report.amount || "—"} />
           </div>
-          <RiskBar score={report.riskScore} className="hidden print:block" />
+          <RiskAmountPieChart
+            declaredAmount={report.amount || ""}
+            riskRows={riskRows}
+            riskScore={effectiveRiskScore}
+            markdown={auditMarkdown}
+          />
+          <RiskBar score={effectiveRiskScore} className="hidden print:block" />
         </div>
 
         <RiskTableSection rows={riskRows} printMode={isPrinting} />
@@ -141,13 +259,13 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         <div className="sysu-card px-7 py-8">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">接口说明</p>
           <div className="mt-5 space-y-4 text-sm leading-7 text-slate-600">
-            <p>风控报告经 /api/reports/:id 加载，与合规申报数据同源存储。</p>
+            <p>风控报告经 /api/reports/:id 加载；可由 /api/agent/review（GLM-5V-Turbo）生成并回写风险分与表格。</p>
             <p>导出 PDF 使用浏览器「另存为 PDF」，版式按当前风险项自适应排版。</p>
             <p>缺失凭证在报告中保持留白，不生成虚假占位内容。</p>
           </div>
         </div>
 
-        <RiskBar score={report.riskScore} />
+        <RiskBar score={effectiveRiskScore} />
       </aside>
     </div>
   );
@@ -162,7 +280,7 @@ function RiskBar({ score, className = "" }: { score: number; className?: string 
         <div className="h-3 rounded-md bg-[#E34234]" style={{ width: `${width}%` }} />
       </div>
       <p className="mt-5 text-sm leading-7 text-slate-500 print:text-xs print:leading-5">
-        合规风险分 {Math.round(width)} / 100，分值越高越需优先复核。
+        合规风控风险分 {Math.round(width)} / 100（越高风险越大），{riskLevelFromScore(width)}风险，越需优先复核。
       </p>
     </div>
   );
@@ -207,15 +325,23 @@ function RiskTableSection({ rows, printMode }: { rows: ReportData["riskRows"]; p
       </div>
 
       <div className="report-print-table-wrap mt-6 -mx-1 overflow-x-auto print:mx-0">
-        <table className="report-print-table w-full min-w-[640px] border-collapse text-sm print:min-w-0">
+        <table className="report-risk-table report-print-table w-full min-w-[960px] border-collapse text-sm print:min-w-0">
+          <colgroup>
+            <col className="w-14" />
+            <col className="w-[14%]" />
+            <col className="w-24" />
+            <col className="w-[11%]" />
+            <col />
+            <col className="w-[28%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
-              <th className="px-4 py-3 font-semibold whitespace-nowrap w-[72px]">序号</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap min-w-[120px]">物品/服务</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap w-[96px]">金额(元)</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap w-[120px]">问题标签</th>
-              <th className="px-3 py-3 font-semibold">风险说明</th>
-              <th className="px-3 py-3 font-semibold w-[108px]">处理建议</th>
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">序号</th>
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">物品/服务</th>
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">金额(元)</th>
+              <th className="px-4 py-3 font-semibold whitespace-nowrap">问题标签</th>
+              <th className="px-4 py-3 font-semibold min-w-[10rem]">风险说明</th>
+              <th className="px-4 py-3 font-semibold min-w-[12rem]">处理建议</th>
             </tr>
           </thead>
           <tbody>
@@ -236,8 +362,8 @@ function RiskTableSection({ rows, printMode }: { rows: ReportData["riskRows"]; p
                       {row.tag}
                     </span>
                   </td>
-                  <td className="px-3 py-4 leading-7 text-slate-600">{row.riskDesc}</td>
-                  <td className="px-3 py-4 leading-7 text-slate-700">{row.suggestion}</td>
+                  <td className="px-4 py-4 leading-7 text-slate-600">{row.riskDesc}</td>
+                  <td className="px-4 py-4 leading-relaxed text-slate-700">{row.suggestion}</td>
                 </tr>
               ))
             )}
@@ -280,20 +406,38 @@ function RiskTableSection({ rows, printMode }: { rows: ReportData["riskRows"]; p
   );
 }
 
-function ScoreCard({ label, value, tone, score }: { label: string; value: string; tone: "high" | "low" | "neutral"; score?: number; }) {
-  const toneClass = tone === "high" ? "bg-white text-slate-900 border-slate-200" : tone === "low" ? "bg-white text-slate-900 border-slate-200" : "bg-white text-slate-700 border-slate-200";
+function ScoreCard({
+  label,
+  value,
+  score,
+  riskLevel,
+}: {
+  label: string;
+  value: string;
+  score?: number;
+  riskLevel?: "低" | "中" | "高";
+}) {
   const normalizedScore = typeof score === "number" ? Math.min(Math.max(score, 0), 100) : null;
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = normalizedScore === null ? circumference : circumference * (1 - normalizedScore / 100);
+  const ringColor = normalizedScore === null ? "#94a3b8" : riskScoreRingColor(normalizedScore);
+  const levelBadge =
+    riskLevel === "高"
+      ? "border-red-200 bg-red-50 text-red-800"
+      : riskLevel === "中"
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-emerald-200 bg-emerald-50 text-emerald-800";
+
   return (
-    <div className={`report-print-block min-h-[132px] rounded-md border p-5 print:min-h-0 ${toneClass}`}>
-      <p className="text-sm font-medium">{label}</p>
+    <div className="report-print-block min-h-[132px] rounded-md border border-slate-200 bg-white p-5 print:min-h-0">
+      <p className="text-sm font-medium text-slate-800">{label}</p>
+      <p className="mt-1 text-[11px] leading-5 text-slate-500">{RISK_SCORE_DEFINITION}</p>
       {normalizedScore === null ? (
-        <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
+        <p className="mt-2 text-xl font-semibold tracking-tight text-slate-900">{value}</p>
       ) : (
         <div className="mt-3 flex items-center gap-4">
-          <div className="relative h-16 w-16">
+          <div className="relative h-16 w-16 shrink-0">
             <svg className="h-16 w-16 -rotate-90" viewBox="0 0 64 64">
               <circle cx="32" cy="32" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="6" />
               <circle
@@ -301,7 +445,7 @@ function ScoreCard({ label, value, tone, score }: { label: string; value: string
                 cy="32"
                 r={radius}
                 fill="none"
-                stroke="#f97316"
+                stroke={ringColor}
                 strokeWidth="6"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
@@ -312,7 +456,14 @@ function ScoreCard({ label, value, tone, score }: { label: string; value: string
               {Math.round(normalizedScore)}
             </span>
           </div>
-          <div className="text-xs text-slate-500">满分 100</div>
+          <div className="min-w-0 space-y-1.5">
+            {riskLevel ? (
+              <span className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold ${levelBadge}`}>
+                {riskLevel}风险
+              </span>
+            ) : null}
+            <p className="text-xs text-slate-500">满分 100 · 越高越危险</p>
+          </div>
         </div>
       )}
     </div>
