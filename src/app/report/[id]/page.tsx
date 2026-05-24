@@ -20,6 +20,7 @@ import {
 } from "@/lib/risk-score";
 import { defaultRules } from "@/lib/site-data";
 import { defaultRiskRows, type ReportData, reportMaterialTypes } from "@/lib/site-data";
+import { normalizeRiskRowsForAmount } from "@/lib/risk-amount-breakdown";
 import {
   type MaterialCacheInfo,
   MATERIAL_CACHE_TTL_SEC,
@@ -178,7 +179,10 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     }
   }, [cacheExpired, canRerunVision, id, loadReport, materialCache.count]);
 
-  const riskRows = report.riskRows?.length ? report.riskRows : defaultRiskRows;
+  const riskRows = useMemo(
+    () => normalizeRiskRowsForAmount(report.riskRows?.length ? report.riskRows : defaultRiskRows, report.amount || ""),
+    [report.riskRows, report.amount],
+  );
   const auditMarkdown =
     report.aiNotes?.find((note) => note.includes("##") || note.length > 400) ?? report.aiNotes?.join("\n");
   const amountRecon = parseAmountReconFromAiNotes(report.aiNotes ?? []);

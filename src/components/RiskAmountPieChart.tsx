@@ -121,7 +121,7 @@ export function RiskAmountPieChart({
             {breakdown.expenseCount > 0
               ? ` · 去重后 ${breakdown.expenseCount} 笔支出${
                   breakdown.rawRowCount > breakdown.expenseCount
-                    ? `（风险表 ${breakdown.rawRowCount} 行，同金额已合并）`
+                    ? `（原风险表 ${breakdown.rawRowCount} 行，已排除汇总项并合并同金额）`
                     : ""
                 }`
               : ""}

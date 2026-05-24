@@ -31,6 +31,7 @@ import {
   parseAmountLimitYuan,
   parseDeclaredAmountYuan,
 } from "@/lib/risk-score";
+import { normalizeRiskRowsForAmount } from "@/lib/risk-amount-breakdown";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { SubmissionRow } from "@/lib/supabase/types";
 import type { ReportFinding } from "@/lib/site-data";
@@ -134,7 +135,7 @@ export async function runAgentReview({
   });
   riskScore = adjustRiskScoreForAmountMismatch(riskScore, amountRecon);
 
-  const riskRows = parseRiskRows(markdown);
+  const riskRows = normalizeRiskRowsForAmount(parseRiskRows(markdown), submission.amount);
   let findings: ReportFinding[] = parseFindings(markdown, riskRows);
   let recommendations = parseRecommendations(markdown);
 

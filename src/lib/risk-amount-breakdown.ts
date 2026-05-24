@@ -73,12 +73,80 @@ function breakdownForAmountAnomaly(total: number, anomaly: AmountAnomaly): Amoun
 
 function classifyRowRiskLevel(row: RiskRow): "low" | "medium" | "high" {
   const text = `${row.riskDesc} ${row.tag} ${row.suggestion}`;
-  if (/高风险|风险等级[：:]\s*高|（高）/.test(text)) return "high";
-  if (/中风险|风险等级[：:]\s*中|（中）/.test(text)) return "medium";
+  if (/高风险|风险等级[：:]\s*高|（高）|🔴/.test(text)) return "high";
+  if (/中低|（中低）|🟡/.test(text)) return "low";
+  if (/中风险|风险等级[：:]\s*中|（中）|🟠/.test(text)) return "medium";
   if (/低风险|风险等级[：:]\s*低|（低）/.test(text)) return "low";
   if (/高/.test(text) && !/高中|高等|高亮/.test(text)) return "high";
   if (/中/.test(text)) return "medium";
   return "low";
+}
+
+const AGGREGATE_ITEM_PATTERN =
+  /全部项目|整体项目|项目总计|申报总计|报销总计|合计金额|总金额|全部支出|整体申报|项目合计|总计金额|申报总额|报销总额/;
+
+/** 风险表中的汇总行（如「全部项目 ¥417」），不得参与单笔支出与饼图计算 */
+export function isAggregateRiskRow(row: RiskRow, declaredTotalYuan?: number): boolean {
+  const item = row.item.replace(/\s/g, "");
+  const amount = parseMoneyString(row.amount);
+  if (amount <= 0) return false;
+
+  if (AGGREGATE_ITEM_PATTERN.test(item)) return true;
+  if (/^(全部|整体|合计|总计|总额|申报|项目)(金额|费用|支出)?$/i.test(item)) return true;
+
+  if (declaredTotalYuan && declaredTotalYuan > 0 && Math.abs(amount - declaredTotalYuan) < 0.01) {
+    if (/时间逻辑|整体一致|项目周期|全局|汇总|总计|项目级/.test(`${row.tag} ${row.riskDesc}`)) return true;
+    if (item.length <= 8 && /全部|整体|项目|合计|总计|申报/.test(item)) return true;
+  }
+
+  return false;
+}
+
+/** 合并同金额多行（如 Codex 178 的两条风险），避免饼图重复计笔 */
+export function mergeSameAmountRiskRows(rows: RiskRow[]): RiskRow[] {
+  const buckets = new Map<string, RiskRow[]>();
+
+  for (const row of rows) {
+    const amount = parseMoneyString(row.amount);
+    if (amount <= 0) continue;
+    const key = amount.toFixed(2);
+    const list = buckets.get(key) ?? [];
+    list.push(row);
+    buckets.set(key, list);
+  }
+
+  const merged: RiskRow[] = [];
+  let seq = 1;
+
+  for (const group of buckets.values()) {
+    const primary = group[0];
+    if (group.length === 1) {
+      merged.push({ ...primary, seq: String(seq++) });
+      continue;
+    }
+
+    const tags = [...new Set(group.map((r) => r.tag.trim()).filter(Boolean))];
+    const riskDescs = group.map((r) => r.riskDesc.trim()).filter(Boolean);
+    const suggestions = [...new Set(group.map((r) => r.suggestion.trim()).filter(Boolean))];
+
+    merged.push({
+      seq: String(seq++),
+      item: primary.item,
+      amount: primary.amount,
+      tag: tags.length === 1 ? tags[0] : tags.join(" / "),
+      riskDesc: [...new Set(riskDescs)].join("；"),
+      suggestion: suggestions.join("；"),
+    });
+  }
+
+  return merged;
+}
+
+/** 排除汇总行并合并同金额，供入库与饼图共用 */
+export function normalizeRiskRowsForAmount(riskRows: RiskRow[], declaredAmount: string): RiskRow[] {
+  const declaredYuan = parseMoneyString(declaredAmount);
+  const expenseRows = riskRows.filter((row) => !isAggregateRiskRow(row, declaredYuan));
+  return mergeSameAmountRiskRows(expenseRows);
 }
 
 function parseSection4Amounts(markdown: string): Partial<AmountBreakdown> {
@@ -127,7 +195,6 @@ function mergeTier(a: "low" | "medium" | "high", b: "low" | "medium" | "high"): 
   return tierPriority(a) >= tierPriority(b) ? a : b;
 }
 
-/** 风险表按金额分组：相同金额优先视为同一笔支出，饼图每笔只计一次 */
 export function dedupeRiskRowsByAmount(riskRows: RiskRow[]): DedupedRiskExpense[] {
   const buckets = new Map<string, RiskRow[]>();
 
@@ -182,7 +249,8 @@ export function computeAmountBreakdown(input: {
   riskScore: number;
   markdown?: string;
 }): AmountBreakdown {
-  const dedupedExpenses = dedupeRiskRowsByAmount(input.riskRows);
+  const normalizedRows = normalizeRiskRowsForAmount(input.riskRows, input.declaredAmount);
+  const dedupedExpenses = dedupeRiskRowsByAmount(normalizedRows);
   const rowsWithAmount = input.riskRows.filter((row) => parseMoneyString(row.amount) > 0);
   const fromRows = sumFromDedupedExpenses(dedupedExpenses);
   const rowRiskSum = fromRows.low + fromRows.medium + fromRows.high;
@@ -222,7 +290,12 @@ export function computeAmountBreakdown(input: {
   }
 
   const sum = compliant + low + medium + high;
-  if (sum > 0 && Math.abs(sum - total) > 1) {
+  if (sum > 0 && Math.abs(sum - total) > 1 && rowRiskSum > 0 && Math.abs(rowRiskSum - total) <= total * 0.05) {
+    compliant = Math.max(0, total - rowRiskSum);
+    low = fromRows.low;
+    medium = fromRows.medium;
+    high = fromRows.high;
+  } else if (sum > 0 && Math.abs(sum - total) > 1) {
     const scale = total / sum;
     compliant *= scale;
     low *= scale;

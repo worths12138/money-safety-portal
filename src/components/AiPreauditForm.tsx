@@ -4,6 +4,7 @@ import { type DragEvent, type FormEvent, useMemo, useState, type CSSProperties }
 import { useRouter } from "next/navigation";
 import {
   materialCountWarnMessage,
+  MATERIAL_COUNT_WARN_THRESHOLD,
   MAX_MATERIAL_FILES,
   MAX_MATERIAL_MB,
 } from "@/lib/material-limits";
@@ -289,7 +290,7 @@ export function AiPreauditForm() {
             <div style={{ fontSize: 26, marginBottom: 6 }}>📁</div>
             <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>点击或拖拽上传（PDF / JPG / PNG / WEBP）</p>
             <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>
-              PDF 本地解析（PyMuPDF 优先）；图片视觉审核 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · 8 份以上可能接近超时
+              PDF 本地解析（PyMuPDF 优先）；图片视觉审核 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · {MATERIAL_COUNT_WARN_THRESHOLD} 份以上可能接近超时
             </p>
           </label>
 
