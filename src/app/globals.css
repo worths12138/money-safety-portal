@@ -121,20 +121,47 @@ main .bg-\[\#e6edf6\] {
 .site-header-brand-icon {
   display: block;
   flex-shrink: 0;
-  height: 2.5rem;
-  width: 2.5rem;
+  height: 2rem;
+  width: 2rem;
   object-fit: cover;
   object-position: top center;
-  border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.95);
-  padding: 2px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  /* 白底 JPG：与导航栏绿色融合，去掉白底块，仅保留盾牌区域 */
+  mix-blend-mode: multiply;
+  filter: brightness(1.06) saturate(1.12);
 }
 
 @media (min-width: 640px) {
   .site-header-brand-icon {
-    height: 2.75rem;
-    width: 2.75rem;
+    height: 2.25rem;
+    width: 2.25rem;
+  }
+}
+
+.home-hero-brand {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: min(36vw, 9rem);
+  max-width: 100%;
+}
+
+.home-hero-brand-icon {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(36vw, 9rem);
+  object-fit: contain;
+  object-position: top center;
+}
+
+@media (min-width: 1024px) {
+  .home-hero-brand {
+    width: min(28%, 10rem);
+    max-height: 10rem;
+  }
+
+  .home-hero-brand-icon {
+    max-height: 10rem;
   }
 }
 

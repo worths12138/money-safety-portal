@@ -11,30 +11,38 @@ export default async function Home() {
   return (
     <div className="space-y-6">
       <section className="grid gap-6">
-        <div className="sysu-card p-8">
+        <div className="sysu-card overflow-hidden p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/ 首页</p>
-          <h2 className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            中山大学软件工程学院大创报销经费合规风控，让核验更可信。
-          </h2>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            面向大创报销场景：凭证多模态识图、申报总金额与凭据自动比对、可解释风控报告与运营复核闭环。
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/preaudit" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-              AI 风控预审
-            </Link>
-            {latestReport ? (
-              <Link
-                href={`/report/${latestReport.id}`}
-                className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
-              >
-                查看最新风控草稿
-              </Link>
-            ) : (
-              <Link href="/report/2026-041" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-                查看示例风控报告
-              </Link>
-            )}
+          <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+            <div className="min-w-0 flex-1">
+              <h2 className="max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                中山大学软件工程学院大创报销经费合规风控，让核验更可信。
+              </h2>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
+                面向大创报销场景：凭证多模态识图、申报总金额与凭据自动比对、可解释风控报告与运营复核闭环。
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/preaudit" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
+                  AI 风控预审
+                </Link>
+                {latestReport ? (
+                  <Link
+                    href={`/report/${latestReport.id}`}
+                    className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+                  >
+                    查看最新风控草稿
+                  </Link>
+                ) : (
+                  <Link href="/report/2026-041" className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
+                    查看示例风控报告
+                  </Link>
+                )}
+              </div>
+            </div>
+            <div className="home-hero-brand mx-auto shrink-0 lg:mx-0 lg:pt-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/api/photos/brand" alt="审盾" className="home-hero-brand-icon" />
+            </div>
           </div>
         </div>
       </section>
