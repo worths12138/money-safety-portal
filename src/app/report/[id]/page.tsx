@@ -241,7 +241,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
               score={effectiveRiskScore}
               riskLevel={riskLevelFromScore(effectiveRiskScore)}
             />
-            <ScoreCard label="项目金额" value={report.amount || "—"} />
+            <ScoreCard label="项目总金额" value={report.amount || "—"} />
           </div>
           <RiskAmountPieChart
             declaredAmount={report.amount || ""}
@@ -432,7 +432,9 @@ function ScoreCard({
   return (
     <div className="report-print-block min-h-[132px] rounded-md border border-slate-200 bg-white p-5 print:min-h-0">
       <p className="text-sm font-medium text-slate-800">{label}</p>
-      <p className="mt-1 text-[11px] leading-5 text-slate-500">{RISK_SCORE_DEFINITION}</p>
+      {normalizedScore !== null ? (
+        <p className="mt-1 text-[11px] leading-5 text-slate-500">{RISK_SCORE_DEFINITION}</p>
+      ) : null}
       {normalizedScore === null ? (
         <p className="mt-2 text-xl font-semibold tracking-tight text-slate-900">{value}</p>
       ) : (
