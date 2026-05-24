@@ -22,7 +22,8 @@ const VISION_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export const VISION_AUDIT_SYSTEM = `你是中山大学软件工程学院大创项目报销审核专家。
 请结合申报信息、PDF 提取文字与附带的图片，严格按照格式输出 Markdown 审核报告。
-图片中可能包含发票、支付截图、订单清单等，请逐一识别并纳入分析，不得遗漏。`;
+图片中可能包含发票、支付截图、订单清单等，请逐一识别并纳入分析，不得遗漏。
+汇总金额时，若多份凭据金额相同，应先判断是否为同一笔支出的发票与支付佐证，避免重复累加；仅当确为多笔独立支出时才分别计入合计。`;
 
 export function isPdfMaterial(m: UploadedMaterial) {
   return m.type === "application/pdf" || m.name.toLowerCase().endsWith(".pdf");

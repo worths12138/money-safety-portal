@@ -3,6 +3,7 @@ import {
   amountMismatchRecommendation,
   adjustRiskScoreForAmountMismatch,
   compareDeclaredAndVoucher,
+  sameAmountDedupeFinding,
   serializeAmountReconNote,
   summarizeVoucherAmounts,
 } from "@/lib/amount-reconciliation";
@@ -144,6 +145,16 @@ export async function runAgentReview({
       amountMismatchFinding(amountRecon),
       ...findings.filter((f) => f.title !== "申报与凭据金额"),
     ].slice(0, 6);
+  }
+
+  if (amountRecon?.voucherSummary.dedupeNotes.length) {
+    const dedupeFinding = sameAmountDedupeFinding(amountRecon.voucherSummary);
+    if (dedupeFinding) {
+      findings = [
+        dedupeFinding,
+        ...findings.filter((f) => f.title !== "同金额凭据去重"),
+      ].slice(0, 6);
+    }
   }
 
   const conclusion = parseConclusion(markdown, riskScore);
