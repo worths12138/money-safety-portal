@@ -13,6 +13,7 @@ const photoMap: Record<string, string> = {
   rules: "u=49911336,582655209&fm=253&fmt=auto&app=138&f=JPEG.webp",
   last: "last.jpeg",
   brand: "brand.jpg",
+  "brand-nav": "brand-nav.png",
 };
 
 function contentTypeFor(filename: string) {

@@ -74,8 +74,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
                   className="site-header-logo-img h-10 w-auto max-w-[min(18rem,46vw)] object-contain object-left"
                 />
               </Link>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/api/photos/brand" alt="审盾" className="site-header-brand-icon" />
+              <span className="site-header-brand-icon-wrap" role="img" aria-label="审盾">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/api/photos/brand-nav" alt="" className="site-header-brand-icon" />
+              </span>
               <div className="min-w-0 border-l border-white/25 pl-2 sm:pl-3">
                 <p className="site-header-brand-sub text-xs font-semibold uppercase tracking-[0.24em]">
                   软件工程学院

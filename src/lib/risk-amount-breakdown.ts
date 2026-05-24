@@ -13,6 +13,16 @@ export type AmountBreakdown = {
   low: number;
   medium: number;
   high: number;
+  /** 按相同金额去重后的支出笔数 */
+  expenseCount: number;
+  /** 风险表原始行数（含同金额重复行） */
+  rawRowCount: number;
+};
+
+export type DedupedRiskExpense = {
+  amountYuan: number;
+  tier: "low" | "medium" | "high";
+  sourceRows: RiskRow[];
 };
 
 export type AmountSegment = {
@@ -46,6 +56,8 @@ function breakdownForAmountAnomaly(total: number, anomaly: AmountAnomaly): Amoun
       low: 0,
       medium: Math.round(total * 0.08),
       high: Math.round(total * 0.92),
+      expenseCount: 1,
+      rawRowCount: 0,
     };
   }
   return {
@@ -54,6 +66,8 @@ function breakdownForAmountAnomaly(total: number, anomaly: AmountAnomaly): Amoun
     low: Math.round(total * 0.15),
     medium: Math.round(total * 0.35),
     high: Math.round(total * 0.45),
+    expenseCount: 1,
+    rawRowCount: 0,
   };
 }
 
@@ -103,18 +117,51 @@ function parseSection4Amounts(markdown: string): Partial<AmountBreakdown> {
   return result;
 }
 
-function sumFromRiskRows(riskRows: RiskRow[]): Pick<AmountBreakdown, "low" | "medium" | "high"> {
-  const sums = { low: 0, medium: 0, high: 0 };
+function tierPriority(tier: "low" | "medium" | "high"): number {
+  if (tier === "high") return 3;
+  if (tier === "medium") return 2;
+  return 1;
+}
+
+function mergeTier(a: "low" | "medium" | "high", b: "low" | "medium" | "high"): "low" | "medium" | "high" {
+  return tierPriority(a) >= tierPriority(b) ? a : b;
+}
+
+/** 风险表按金额分组：相同金额优先视为同一笔支出，饼图每笔只计一次 */
+export function dedupeRiskRowsByAmount(riskRows: RiskRow[]): DedupedRiskExpense[] {
+  const buckets = new Map<string, RiskRow[]>();
+
   for (const row of riskRows) {
     const amount = parseMoneyString(row.amount);
     if (amount <= 0) continue;
-    const tier = classifyRowRiskLevel(row);
-    sums[tier] += amount;
+    const key = amount.toFixed(2);
+    const list = buckets.get(key) ?? [];
+    list.push(row);
+    buckets.set(key, list);
+  }
+
+  const expenses: DedupedRiskExpense[] = [];
+  for (const [key, rows] of buckets) {
+    const amountYuan = Number.parseFloat(key);
+    let tier: "low" | "medium" | "high" = "low";
+    for (const row of rows) {
+      tier = mergeTier(tier, classifyRowRiskLevel(row));
+    }
+    expenses.push({ amountYuan, tier, sourceRows: rows });
+  }
+
+  return expenses.sort((a, b) => b.amountYuan - a.amountYuan);
+}
+
+function sumFromDedupedExpenses(expenses: DedupedRiskExpense[]): Pick<AmountBreakdown, "low" | "medium" | "high"> {
+  const sums = { low: 0, medium: 0, high: 0 };
+  for (const expense of expenses) {
+    sums[expense.tier] += expense.amountYuan;
   }
   return sums;
 }
 
-function estimateFromRiskScore(riskScore: number, total: number): AmountBreakdown {
+function estimateFromRiskScore(riskScore: number, total: number, expenseCount = 1): AmountBreakdown {
   const riskRatio = Math.min(100, Math.max(0, riskScore)) / 100;
   const riskPool = total * riskRatio;
   const compliant = Math.max(0, total - riskPool);
@@ -124,6 +171,8 @@ function estimateFromRiskScore(riskScore: number, total: number): AmountBreakdow
     low: riskPool * 0.45,
     medium: riskPool * 0.35,
     high: riskPool * 0.2,
+    expenseCount,
+    rawRowCount: 0,
   };
 }
 
@@ -133,15 +182,20 @@ export function computeAmountBreakdown(input: {
   riskScore: number;
   markdown?: string;
 }): AmountBreakdown {
-  const fromRows = sumFromRiskRows(input.riskRows);
+  const dedupedExpenses = dedupeRiskRowsByAmount(input.riskRows);
+  const rowsWithAmount = input.riskRows.filter((row) => parseMoneyString(row.amount) > 0);
+  const fromRows = sumFromDedupedExpenses(dedupedExpenses);
   const rowRiskSum = fromRows.low + fromRows.medium + fromRows.high;
+  const expenseCount = dedupedExpenses.length;
+  const rawRowCount = rowsWithAmount.length;
 
   let total = parseMoneyString(input.declaredAmount);
   if (total <= 0 && rowRiskSum > 0) total = rowRiskSum;
 
   const amountAnomaly = total > 0 ? detectAmountAnomaly(total) : null;
   if (amountAnomaly) {
-    return breakdownForAmountAnomaly(total, amountAnomaly);
+    const breakdown = breakdownForAmountAnomaly(total, amountAnomaly);
+    return { ...breakdown, expenseCount: expenseCount || breakdown.expenseCount, rawRowCount };
   }
 
   const fromMd = input.markdown ? parseSection4Amounts(input.markdown) : {};
@@ -149,9 +203,10 @@ export function computeAmountBreakdown(input: {
   if (total <= 0) total = 10000;
 
   let compliant = fromMd.compliant ?? 0;
-  let low = fromMd.low ?? fromRows.low;
-  let medium = fromMd.medium ?? fromRows.medium;
-  let high = fromMd.high ?? fromRows.high;
+  const hasDedupedRows = expenseCount > 0;
+  let low = hasDedupedRows ? fromRows.low : (fromMd.low ?? fromRows.low);
+  let medium = hasDedupedRows ? fromRows.medium : (fromMd.medium ?? fromRows.medium);
+  let high = hasDedupedRows ? fromRows.high : (fromMd.high ?? fromRows.high);
 
   if (compliant <= 0 && rowRiskSum > 0) {
     compliant = Math.max(0, total - rowRiskSum);
@@ -159,7 +214,7 @@ export function computeAmountBreakdown(input: {
 
   const riskSum = low + medium + high;
   if (riskSum <= 0) {
-    return estimateFromRiskScore(input.riskScore, total);
+    return estimateFromRiskScore(input.riskScore, total, expenseCount || 1);
   }
 
   if (compliant <= 0) {
@@ -175,7 +230,7 @@ export function computeAmountBreakdown(input: {
     high *= scale;
   }
 
-  return { total, compliant, low, medium, high };
+  return { total, compliant, low, medium, high, expenseCount: expenseCount || 1, rawRowCount };
 }
 
 export function breakdownToSegments(breakdown: AmountBreakdown): AmountSegment[] {

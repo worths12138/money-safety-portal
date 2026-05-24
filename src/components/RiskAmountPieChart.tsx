@@ -116,7 +116,16 @@ export function RiskAmountPieChart({
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold text-slate-800">金额风险占比</p>
-          <p className="mt-1 text-xs text-slate-500">立体饼图 · 申报总额 {formatYuan(breakdown.total)}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            立体饼图 · 申报总额 {formatYuan(breakdown.total)}
+            {breakdown.expenseCount > 0
+              ? ` · 去重后 ${breakdown.expenseCount} 笔支出${
+                  breakdown.rawRowCount > breakdown.expenseCount
+                    ? `（风险表 ${breakdown.rawRowCount} 行，同金额已合并）`
+                    : ""
+                }`
+              : ""}
+          </p>
         </div>
       </div>
 
