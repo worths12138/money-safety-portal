@@ -19,6 +19,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null);
+  const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
+  const [purging, setPurging] = useState(false);
 
   const loadData = useCallback(async () => {
     setError("");
@@ -69,6 +72,84 @@ export default function AdminPage() {
       return item.risk >= 70;
     });
   }, [queue, riskFilter]);
+
+  async function deleteSubmission(id: string, projectName: string) {
+    if (!window.confirm(`确定删除申报「${projectName}」？关联审核记录将一并删除，且不可恢复。`)) {
+      return;
+    }
+
+    setDeletingSubmissionId(id);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/submissions/${id}`, { method: "DELETE" });
+      const payload = (await response.json()) as { ok?: boolean; message?: string };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "删除失败");
+      }
+
+      setQueue((current) => current.filter((item) => item.id !== id));
+      setLogs((current) => current.filter((item) => item.submissionId !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeletingSubmissionId(null);
+    }
+  }
+
+  async function deleteAuditLog(logId: string) {
+    if (!window.confirm("确定删除这条审核记录？删除后不可恢复。")) {
+      return;
+    }
+
+    setDeletingLogId(logId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/admin/audit-logs/${logId}`, { method: "DELETE" });
+      const payload = (await response.json()) as { ok?: boolean; message?: string };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "删除失败");
+      }
+
+      setLogs((current) => current.filter((item) => item.id !== logId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeletingLogId(null);
+    }
+  }
+
+  async function purgeAll() {
+    if (
+      !window.confirm(
+        "确定一键清空全部申报与审核记录？此操作不可恢复，对应风控报告链接将失效。",
+      )
+    ) {
+      return;
+    }
+
+    setPurging(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/admin/purge", { method: "POST" });
+      const payload = (await response.json()) as { ok?: boolean; message?: string };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "清空失败");
+      }
+
+      setQueue([]);
+      setLogs([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "清空失败");
+    } finally {
+      setPurging(false);
+    }
+  }
 
   async function updateStatus(id: string, status: QueueStatus) {
     if (status === "待审核") {
@@ -124,7 +205,7 @@ export default function AdminPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规风控运营台</h2>
             <p className="mt-2 text-sm text-slate-500">
-              按风险分级筛选申报，一键通过或驳回。申报队列与审核记录各最多保留 50 条，超出后自动删除最早历史记录。
+              按风险分级筛选申报，一键通过或驳回；可删除单条申报或审核记录，也可一键清空全部数据。
             </p>
           </div>
           <Link href="/admin/rules" className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
@@ -146,6 +227,14 @@ export default function AdminPage() {
               {item} 风险
             </button>
           ))}
+          <button
+            type="button"
+            disabled={purging || loading}
+            onClick={() => void purgeAll()}
+            className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-800 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {purging ? "清空中…" : "一键清空"}
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -200,7 +289,7 @@ export default function AdminPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={reviewingId === item.id || item.status !== "待审核"}
+                      disabled={reviewingId === item.id || deletingSubmissionId === item.id || item.status !== "待审核"}
                       onClick={() => updateStatus(item.id, "通过")}
                       className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -208,11 +297,19 @@ export default function AdminPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={reviewingId === item.id || item.status !== "待审核"}
+                      disabled={reviewingId === item.id || deletingSubmissionId === item.id || item.status !== "待审核"}
                       onClick={() => updateStatus(item.id, "驳回")}
                       className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       驳回
+                    </button>
+                    <button
+                      type="button"
+                      disabled={reviewingId === item.id || deletingSubmissionId === item.id}
+                      onClick={() => void deleteSubmission(item.id, item.projectName)}
+                      className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-800 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deletingSubmissionId === item.id ? "删除中…" : "删除"}
                     </button>
                   </div>
                 </div>
@@ -308,6 +405,14 @@ export default function AdminPage() {
                   >
                     打开对应风险评估书 →
                   </Link>
+                  <button
+                    type="button"
+                    disabled={deletingLogId === item.id}
+                    onClick={() => void deleteAuditLog(item.id)}
+                    className="mt-2 block text-xs font-semibold text-red-700 transition hover:underline disabled:opacity-50"
+                  >
+                    {deletingLogId === item.id ? "删除中…" : "删除此记录"}
+                  </button>
                 </div>
               ))
             )}

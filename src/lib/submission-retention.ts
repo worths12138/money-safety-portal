@@ -120,3 +120,79 @@ export async function enforceAdminRetention() {
     deletedLogs: auditResult.deletedLogs,
   };
 }
+
+/** 删除单条申报及其关联审核记录 */
+export async function deleteSubmissionById(id: string) {
+  const supabase = getSupabaseAdmin();
+
+  const { data: existing, error: fetchError } = await supabase.from("submissions").select("id").eq("id", id).maybeSingle();
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+  if (!existing) {
+    throw new Error("未找到该申报记录。");
+  }
+
+  const { error: auditError } = await supabase.from("audit_records").delete().eq("submission_id", id);
+  if (auditError) {
+    throw new Error(auditError.message);
+  }
+
+  const { error: subError } = await supabase.from("submissions").delete().eq("id", id);
+  if (subError) {
+    throw new Error(subError.message);
+  }
+}
+
+/** 删除单条审核记录（不删除申报） */
+export async function deleteAuditLogById(logId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error: fetchError } = await supabase.from("audit_records").select("id").eq("id", logId).maybeSingle();
+  if (fetchError) {
+    throw new Error(fetchError.message);
+  }
+  if (!data) {
+    throw new Error("未找到该审核记录。");
+  }
+
+  const { error } = await supabase.from("audit_records").delete().eq("id", logId);
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/** 一键清空运营台全部申报与审核记录 */
+export async function purgeAllAdminData() {
+  const supabase = getSupabaseAdmin();
+
+  const { data: auditRows, error: auditListError } = await supabase.from("audit_records").select("id");
+  if (auditListError) {
+    throw new Error(auditListError.message);
+  }
+
+  const auditIds = (auditRows ?? []).map((row) => row.id);
+  if (auditIds.length > 0) {
+    const { error: auditDelError } = await supabase.from("audit_records").delete().in("id", auditIds);
+    if (auditDelError) {
+      throw new Error(auditDelError.message);
+    }
+  }
+
+  const { data: subRows, error: subListError } = await supabase.from("submissions").select("id");
+  if (subListError) {
+    throw new Error(subListError.message);
+  }
+
+  const submissionIds = (subRows ?? []).map((row) => row.id);
+  if (submissionIds.length > 0) {
+    const { error: subDelError } = await supabase.from("submissions").delete().in("id", submissionIds);
+    if (subDelError) {
+      throw new Error(subDelError.message);
+    }
+  }
+
+  return {
+    deletedSubmissions: submissionIds.length,
+    deletedLogs: auditIds.length,
+  };
+}

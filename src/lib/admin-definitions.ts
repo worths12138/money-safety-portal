@@ -36,8 +36,8 @@ export const adminQueueFieldDefinitions: AdminFieldDefinition[] = [
   {
     key: "actions",
     label: "操作",
-    definition: "运营人员对「待审核」申报执行通过或驳回；每次操作会写入审核记录且不可覆盖历史。",
-    source: "POST /api/admin/review",
+    definition: "对待审核项可通过/驳回；任意申报可删除（含关联审核记录）；顶部「一键清空」可删除全部申报与审核记录。",
+    source: "DELETE /api/admin/submissions/:id · POST /api/admin/purge",
   },
 ];
 

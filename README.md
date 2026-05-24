@@ -162,6 +162,8 @@ scripts/
 
 ## 相关文档
 
+- [`docs/DEPLOY_VERCEL.md`](docs/DEPLOY_VERCEL.md) — Vercel 免费部署清单（环境变量、限制、自检）
+- [`docs/DEPLOY_TENCENT_LIGHTHOUSE.md`](docs/DEPLOY_TENCENT_LIGHTHOUSE.md) — **腾讯云轻量服务器**部署（Node + Python + PM2 + Nginx）
 - `AGENTS.md` — 本仓库 Next.js 开发约定（给 AI 助手）
 - `.env.local.example` — 环境变量模板
 
