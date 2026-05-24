@@ -3,21 +3,21 @@ import { runAgentReview } from "@/lib/agent-review";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
 import { createSubmission, getReportById, type SubmissionPayload } from "@/lib/submissions-db";
+import { MAX_MATERIAL_FILES, MAX_MATERIAL_MB } from "@/lib/material-limits";
 
 export const maxDuration = 300;
 
-const MAX_MATERIALS = 10;
-const MAX_MATERIAL_BYTES = 20 * 1024 * 1024;
+const MAX_MATERIAL_BYTES = MAX_MATERIAL_MB * 1024 * 1024;
 
 function validateMaterials(materials: SubmissionPayload["materials"]) {
   if (!materials?.length) return materials;
-  if (materials.length > MAX_MATERIALS) {
-    throw new Error(`凭证最多上传 ${MAX_MATERIALS} 个文件。`);
+  if (materials.length > MAX_MATERIAL_FILES) {
+    throw new Error(`凭证最多上传 ${MAX_MATERIAL_FILES} 个文件。`);
   }
   for (const m of materials) {
     const size = Math.ceil((m.b64.length * 3) / 4);
     if (size > MAX_MATERIAL_BYTES) {
-      throw new Error(`文件 ${m.name} 超过 20MB 限制。`);
+      throw new Error(`文件 ${m.name} 超过 ${MAX_MATERIAL_MB}MB 限制。`);
     }
   }
   return materials;

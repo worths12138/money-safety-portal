@@ -2,13 +2,16 @@
 
 import { type DragEvent, type FormEvent, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import {
+  materialCountWarnMessage,
+  MAX_MATERIAL_FILES,
+  MAX_MATERIAL_MB,
+} from "@/lib/material-limits";
 
 const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".heic"];
 const VISION_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".webp"];
 const ACCEPT_INPUT =
   ".pdf,.doc,.docx,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const MAX_FILES = 10;
-const MAX_MB = 20;
 
 const blankForm = {
   projectName: "",
@@ -86,11 +89,11 @@ function mergeFiles(current: StoredFile[], incoming: FileList | null) {
   const map = new Map(current.map((item) => [item.key, item]));
   for (const file of Array.from(incoming)) {
     if (!isAcceptedFile(file)) continue;
-    if (file.size > MAX_MB * 1024 * 1024) continue;
+    if (file.size > MAX_MATERIAL_MB * 1024 * 1024) continue;
     const key = `${file.name}-${file.size}`;
     if (!map.has(key)) map.set(key, { key, file });
   }
-  return Array.from(map.values()).slice(0, MAX_FILES);
+  return Array.from(map.values()).slice(0, MAX_MATERIAL_FILES);
 }
 
 function fileToBase64(file: File): Promise<{ name: string; type: string; b64: string }> {
@@ -119,6 +122,7 @@ export function AiPreauditForm() {
 
   const visionCount = useMemo(() => storedFiles.filter((s) => isVisionFile(s.file)).length, [storedFiles]);
   const nonVisionCount = storedFiles.length - visionCount;
+  const manyMaterialsWarn = useMemo(() => materialCountWarnMessage(visionCount), [visionCount]);
 
   function updateField(name: keyof typeof blankForm, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -185,7 +189,7 @@ export function AiPreauditForm() {
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "AbortError"
-          ? "请求超时。请减少凭证数量或稍后在报告页重试。"
+          ? "请求超时（凭证较多时常见）。请缩小图片体积或减少文件数后重试，或稍后在报告页使用「重新识图评估」。"
           : error instanceof Error
             ? error.message
             : "提交失败，请检查网络后重试。";
@@ -285,7 +289,7 @@ export function AiPreauditForm() {
             <div style={{ fontSize: 26, marginBottom: 6 }}>📁</div>
             <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>点击或拖拽上传（PDF / JPG / PNG / WEBP）</p>
             <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>
-              PDF 本地解析（PyMuPDF 优先）；图片视觉审核 · 单文件 ≤ {MAX_MB}MB · 最多 {MAX_FILES} 个
+              PDF 本地解析（PyMuPDF 优先）；图片视觉审核 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · 8 份以上可能接近超时
             </p>
           </label>
 
@@ -329,6 +333,9 @@ export function AiPreauditForm() {
 
         {visionCount === 0 ? (
           <p style={{ fontSize: 12, color: "#b45309", margin: "0 0 8px" }}>请至少上传 1 份 PDF 或图片凭证。</p>
+        ) : null}
+        {manyMaterialsWarn ? (
+          <p style={{ fontSize: 12, color: "#b45309", margin: "0 0 8px", lineHeight: 1.6 }}>{manyMaterialsWarn}</p>
         ) : null}
         {nonVisionCount > 0 ? (
           <p style={{ fontSize: 11, color: "#9ca3af", margin: "0 0 8px" }}>
