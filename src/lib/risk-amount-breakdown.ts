@@ -38,8 +38,8 @@ export const AMOUNT_TIER_COLORS: Record<
   RiskAmountTier,
   { label: string; color: string; colorSide: string }
 > = {
-  compliant: { label: "合规金额", color: "#22c55e", colorSide: "#15803d" },
-  low: { label: "低风险金额", color: "#3b82f6", colorSide: "#1d4ed8" },
+  compliant: { label: "合规金额", color: "#4ade80", colorSide: "#16a34a" },
+  low: { label: "低风险金额", color: "#22c55e", colorSide: "#15803d" },
   medium: { label: "中风险金额", color: "#eab308", colorSide: "#a16207" },
   high: { label: "高风险金额", color: "#ef4444", colorSide: "#b91c1c" },
 };
