@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { AuthHeaderBar } from "@/components/AuthHeaderBar";
 import {
   brandHrefForRole,
+  entryPortalHeaderLinks,
   navItemsForRole,
   resolveActiveNavMatch,
   resolvePortalRole,
@@ -77,7 +78,11 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <header className="site-header no-print sticky top-0 z-[100] backdrop-blur">
           <div className="relative z-[2] flex w-full flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
             <div className="site-header-brand relative z-[3] flex min-w-0 items-center gap-2 sm:gap-3">
-              <Link href={brandHref} className="site-header-logo relative z-[4] shrink-0" title="中山大学">
+              <Link
+                href={brandHref}
+                className="site-header-logo relative z-[4] shrink-0"
+                title={portalRole === "entry" ? "返回身份选择（登录入口在右上角）" : "返回工作台首页"}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/sysu-logo-nav.png?v=2"
@@ -101,37 +106,36 @@ export function SiteShell({ children }: { children: ReactNode }) {
               </div>
             </div>
 
-            <nav className="site-header-nav hidden items-center gap-0 md:flex">
-              {navItems.map((item) => {
-                const active = item.match === activeNavMatch;
-                return (
+            <nav className="site-header-nav flex items-center gap-0">
+              <div className="hidden items-center gap-0 md:flex">
+                {navItems.map((item) => {
+                  const active = item.match === activeNavMatch;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`site-header-nav-link rounded-sm ${active ? "is-active" : ""}`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                {switchLink ? (
                   <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`site-header-nav-link rounded-sm ${active ? "is-active" : ""}`}
+                    href={switchLink.href}
+                    className="site-header-nav-link ml-2 rounded-sm border border-white/30"
                   >
-                    {item.label}
+                    {switchLink.label}
                   </Link>
-                );
-              })}
-              {switchLink ? (
-                <Link
-                  href={switchLink.href}
-                  className="site-header-nav-link ml-2 rounded-sm border border-white/30"
-                >
-                  {switchLink.label}
-                </Link>
-              ) : null}
-              {portalRole === "entry" ? (
-                <>
-                  <Link href="/student" className="site-header-nav-link rounded-sm">
-                    学生端
-                  </Link>
-                  <Link href="/teacher/queue" className="site-header-nav-link rounded-sm">
-                    教师端
-                  </Link>
-                </>
-              ) : null}
+                ) : null}
+              </div>
+              {portalRole === "entry"
+                ? entryPortalHeaderLinks.map((item) => (
+                    <Link key={item.href} href={item.href} className="site-header-nav-link rounded-sm">
+                      {item.label}
+                    </Link>
+                  ))
+                : null}
             </nav>
           </div>
         </header>

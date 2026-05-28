@@ -61,12 +61,19 @@ export function resolveActiveNavMatch(pathname: string, items: PortalNavItem[]):
 export function brandHrefForRole(role: PortalRole): string {
   if (role === "student") return "/student";
   if (role === "teacher") return "/teacher/queue";
+  /** 首页校徽：身份选择；未登录用户再点右上角进入各端登录 */
   if (role === "entry") return "/";
   return "/home";
 }
 
+/** 首页 / 顶栏：直达各端登录（教师左、学生右，与身份选择页一致） */
+export const entryPortalHeaderLinks = [
+  { href: "/teacher/login", label: "教师端" },
+  { href: "/student/login", label: "学生端" },
+] as const;
+
 export function switchPortalLink(role: PortalRole): { href: string; label: string } | null {
-  if (role === "student") return { href: "/teacher/queue", label: "教师端" };
-  if (role === "teacher") return { href: "/student", label: "学生端" };
+  if (role === "student") return { href: "/teacher/login", label: "教师端" };
+  if (role === "teacher") return { href: "/student/login", label: "学生端" };
   return null;
 }

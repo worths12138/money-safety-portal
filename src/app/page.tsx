@@ -16,18 +16,18 @@ export default function StartPage() {
           </p>
           <div className="mt-10 grid gap-4 sm:grid-cols-2">
             <Link
-              href="/student"
+              href="/student/login"
               className="block border border-slate-900 bg-slate-900 px-6 py-5 text-white transition hover:bg-slate-800"
             >
               <p className="text-lg font-semibold">我是学生</p>
-              <p className="mt-2 text-sm text-slate-200">提交报销申报、上传凭证、查询复核进度</p>
+              <p className="mt-2 text-sm text-slate-200">登录后提交申报、上传凭证、查询复核进度</p>
             </Link>
             <Link
-              href="/teacher/queue"
+              href="/teacher/login"
               className="block border border-slate-200 bg-white px-6 py-5 transition hover:bg-slate-50"
             >
               <p className="text-lg font-semibold text-slate-950">我是指导老师</p>
-              <p className="mt-2 text-sm text-slate-600">收取申报、AI 风控初审、通过或驳回</p>
+              <p className="mt-2 text-sm text-slate-600">登录后复核队列、AI 初审、通过或驳回</p>
             </Link>
           </div>
           <p className="mt-8 text-center text-xs text-slate-500">
