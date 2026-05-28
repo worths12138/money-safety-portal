@@ -24,8 +24,15 @@ export default function StudentHomePage() {
             <p className="mt-2 text-sm text-slate-200">填写项目信息并上传 PDF / 图片凭证</p>
           </Link>
           <Link
+            href="/student/qa"
+            className="block border border-blue-200 bg-blue-50 px-5 py-4 transition hover:bg-blue-100/80"
+          >
+            <p className="text-lg font-semibold text-slate-900">合规答疑</p>
+            <p className="mt-2 text-sm text-slate-600">RAG 规则库检索 + AI 简要解答（发票、API、类目等）</p>
+          </Link>
+          <Link
             href="/student/status"
-            className="block border border-slate-200 bg-white px-5 py-4 transition hover:bg-slate-50"
+            className="block border border-slate-200 bg-white px-5 py-4 transition hover:bg-slate-50 sm:col-span-2"
           >
             <p className="text-lg font-semibold text-slate-900">进度查询</p>
             <p className="mt-2 text-sm text-slate-500">输入报告编号查看 AI 初审与教师批复状态</p>

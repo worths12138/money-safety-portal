@@ -8,6 +8,7 @@ import {
   summarizeVoucherAmounts,
 } from "@/lib/amount-reconciliation";
 import { getComplianceRules, getFullAuditRulesPrompt } from "@/lib/compliance-rules";
+import { buildRagAuditContext } from "@/lib/rag/audit-context";
 import {
   filterVisionMaterials,
   prepareMaterialsForAudit,
@@ -99,6 +100,15 @@ export async function runAgentReview({
     amountRecon = compareDeclaredAndVoucher(submission.amount, audit.voucherSummary);
   } else {
     const fullRulesPrompt = await getFullAuditRulesPrompt();
+    const { ragPromptBlock } = buildRagAuditContext({
+      projectName: submission.project_name,
+      projectPeriod: submission.project_period,
+      amount: submission.amount,
+      notes: submission.notes ?? undefined,
+      materialFileNames: materialFiles,
+      extraText,
+    });
+    const rulesWithRag = [fullRulesPrompt, ragPromptBlock].filter(Boolean).join("\n\n");
     markdown = await zhipuChatCompletion({
       system: SUBMISSION_AUDIT_SYSTEM,
       messages: buildSubmissionAuditMessages({
@@ -108,7 +118,7 @@ export async function runAgentReview({
         notes: submission.notes ?? undefined,
         materialFiles,
         extraText,
-        fullRulesPrompt,
+        fullRulesPrompt: rulesWithRag,
       }),
       maxTokens: 4096,
     });

@@ -10,6 +10,7 @@ export type PortalNavItem = {
 export const studentNavItems: PortalNavItem[] = [
   { href: "/student", label: "学生首页", match: "/student", shortLabel: "首", exactOnly: true },
   { href: "/student/preaudit", label: "提交申报", match: "/student/preaudit", shortLabel: "报" },
+  { href: "/student/qa", label: "合规答疑", match: "/student/qa", shortLabel: "答" },
   { href: "/student/status", label: "进度查询", match: "/student/status", shortLabel: "查" },
 ];
 

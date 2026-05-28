@@ -5,6 +5,7 @@ import {
   type VoucherAmountSummary,
 } from "@/lib/amount-reconciliation";
 import { getFullAuditRulesPrompt } from "@/lib/compliance-rules";
+import { buildRagAuditContext } from "@/lib/rag/audit-context";
 import { extractPdfFromBase64 } from "@/lib/pdf-extract";
 import { extractAmountsFromImages } from "@/lib/voucher-image-amount";
 import { MAX_MULTIMODAL_IMAGES_PER_CALL } from "@/lib/material-limits";
@@ -25,6 +26,7 @@ const VISION_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 export const VISION_AUDIT_SYSTEM = `你是中山大学软件工程学院大创项目报销审核专家。
 请结合申报信息、PDF 提取文字与附带的图片，严格按照格式输出 Markdown 审核报告。
 图片中可能包含发票、支付截图、订单清单等，请逐一识别并纳入分析，不得遗漏。
+若提示词中包含【命中规则库】，须在风险分析中引用相关 rule_id，并体现 risk_tags 与 suggestion。
 汇总金额时，若多份凭据金额相同，应先判断是否为同一笔支出的发票与支付佐证，避免重复累加；仅当确为多笔独立支出时才分别计入合计。
 风险逐条分析表格中每行须为具体支出项，不得增加「全部项目」「合计」等汇总行；同一笔支出的多条风险须合并为一行。`;
 
@@ -150,6 +152,14 @@ export async function runVisionAgentAudit(input: {
 }): Promise<VisionAgentAuditResult> {
   const fullRulesPrompt = await getFullAuditRulesPrompt();
   const { pdfText, pdfDocuments, images, skippedNames } = await prepareMaterialsForAudit(input.materials);
+  const { ragPromptBlock } = buildRagAuditContext({
+    projectName: input.projectName,
+    projectPeriod: input.projectPeriod,
+    amount: input.amount,
+    notes: input.notes,
+    pdfText,
+  });
+  const rulesWithRag = [fullRulesPrompt, ragPromptBlock].filter(Boolean).join("\n\n");
 
   if (!pdfText && images.length === 0) {
     throw new Error("没有可用于识图的凭证（请上传 PDF 或 JPG/PNG/WEBP 图片）。");
@@ -188,7 +198,7 @@ export async function runVisionAgentAudit(input: {
       pdfText: pdfText + overflowImageText,
       images: imagesForMultimodal,
       skippedNames,
-      fullRulesPrompt,
+      fullRulesPrompt: rulesWithRag,
       amountReconHint,
     }),
     maxTokens: 4096,
