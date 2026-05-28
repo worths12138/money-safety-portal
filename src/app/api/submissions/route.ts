@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { runAgentReview } from "@/lib/agent-review";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
+import { authErrorResponse } from "@/lib/auth/session";
+import { getStudentIfAuth } from "@/lib/auth/api-guard";
 import { createSubmission, getReportById, type SubmissionPayload } from "@/lib/submissions-db";
 import { MAX_MATERIAL_FILES, MAX_MATERIAL_MB } from "@/lib/material-limits";
 import { resolveRunAgentOnSubmit, submissionJsonParseTimeoutMs } from "@/lib/submit-agent-config";
@@ -40,6 +42,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    const student = await getStudentIfAuth();
+
     const payload = (await withTimeout(
       request.json(),
       submissionJsonParseTimeoutMs(),
@@ -53,7 +57,14 @@ export async function POST(request: Request) {
 
     const runAgent = resolveRunAgentOnSubmit(payload.runAgent);
     const report = await withTimeout(
-      createSubmission({ ...payload, materialFiles }, { deferAgent: !runAgent }),
+      createSubmission(
+        { ...payload, materialFiles },
+        {
+          deferAgent: !runAgent,
+          submitterId: student?.id,
+          ownerDisplay: student?.displayName,
+        },
+      ),
       8_000,
     );
 
@@ -94,6 +105,9 @@ export async function POST(request: Request) {
       report: latest,
     });
   } catch (error) {
+    const authRes = authErrorResponse(error);
+    if (authRes) return authRes;
+
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse();
     }

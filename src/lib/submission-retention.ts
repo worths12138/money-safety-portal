@@ -1,3 +1,4 @@
+import { STUDENT_SUBMISSION_LIMIT } from "@/lib/auth/config";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 /** 运营台申报队列最大保留条数 */
@@ -109,6 +110,56 @@ export async function enforceAuditLogRetention(
 
   const deletedLogs = await deleteOldestRows("audit_records", "created_at", total - limit);
   return { deletedLogs };
+}
+
+/**
+ * 单名学生最多保留 limit 条申报，超出删除最早记录（及关联审核日志）
+ */
+export async function enforceStudentSubmissionRetention(
+  submitterId: string,
+  limit = STUDENT_SUBMISSION_LIMIT,
+): Promise<{ deletedSubmissions: number }> {
+  const supabase = getSupabaseAdmin();
+  const { count, error: countError } = await supabase
+    .from("submissions")
+    .select("*", { count: "exact", head: true })
+    .eq("submitter_id", submitterId);
+
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
+  const total = count ?? 0;
+  if (total <= limit) {
+    return { deletedSubmissions: 0 };
+  }
+
+  const excess = total - limit;
+  const { data: oldest, error: listError } = await supabase
+    .from("submissions")
+    .select("id")
+    .eq("submitter_id", submitterId)
+    .order("submitted_at", { ascending: true })
+    .limit(excess);
+
+  if (listError) {
+    throw new Error(listError.message);
+  }
+
+  const ids = (oldest ?? []).map((row) => row.id);
+  if (ids.length === 0) return { deletedSubmissions: 0 };
+
+  const { error: auditDelError } = await supabase.from("audit_records").delete().in("submission_id", ids);
+  if (auditDelError) {
+    throw new Error(auditDelError.message);
+  }
+
+  const { error: subDelError } = await supabase.from("submissions").delete().in("id", ids);
+  if (subDelError) {
+    throw new Error(subDelError.message);
+  }
+
+  return { deletedSubmissions: ids.length };
 }
 
 /** 运营台数据保留策略（申报队列 + 审核记录各最多 50 条） */

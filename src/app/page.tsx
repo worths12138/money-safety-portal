@@ -9,19 +9,32 @@ export default function StartPage() {
         <div className="sysu-card bg-white/90 p-8 backdrop-blur">
           <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500">SYSU • 金融合规 · 风控</p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            大创报销经费合规风控，从这里开始更可追溯
+            大创报销经费合规风控平台
           </h1>
           <p className="mt-4 text-base leading-7 text-slate-600">
-            凭证识图、申报总金额校验、Agent 风控报告与运营复核一体，形成可追溯的大创报销风控入口。
+            学生提交申报与凭证；指导教师发起 AI 初审并完成复核。请选择您的身份进入对应工作台。
           </p>
-          <div className="mt-8">
+          <div className="mt-10 grid gap-4 sm:grid-cols-2">
             <Link
-              href="/home"
-              className="inline-block border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              href="/student"
+              className="block border border-slate-900 bg-slate-900 px-6 py-5 text-white transition hover:bg-slate-800"
             >
-              进入系统
+              <p className="text-lg font-semibold">我是学生</p>
+              <p className="mt-2 text-sm text-slate-200">提交报销申报、上传凭证、查询复核进度</p>
+            </Link>
+            <Link
+              href="/teacher/queue"
+              className="block border border-slate-200 bg-white px-6 py-5 transition hover:bg-slate-50"
+            >
+              <p className="text-lg font-semibold text-slate-950">我是指导老师</p>
+              <p className="mt-2 text-sm text-slate-600">收取申报、AI 风控初审、通过或驳回</p>
             </Link>
           </div>
+          <p className="mt-8 text-center text-xs text-slate-500">
+            <Link href="/home" className="underline hover:text-slate-700">
+              进入原完整导航（演示/开发）
+            </Link>
+          </p>
         </div>
       </div>
     </div>

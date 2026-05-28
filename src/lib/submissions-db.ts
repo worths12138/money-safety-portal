@@ -1,4 +1,6 @@
-import { enforceAdminRetention } from "@/lib/submission-retention";
+import { isAuthEnabled } from "@/lib/auth/config";
+import type { SessionProfile } from "@/lib/auth/types";
+import { enforceAdminRetention, enforceStudentSubmissionRetention } from "@/lib/submission-retention";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { AuditRecordRow, AuditResult, SubmissionRow } from "@/lib/supabase/types";
 import { REVIEW_LABEL_TO_RESULT, STATUS_DB_TO_LABEL, reviewActionLabel } from "@/lib/review-status";
@@ -169,7 +171,7 @@ export async function listAuditLogs(limit = 50) {
   return (data as AuditRecordRow[]).map(rowToOperationLog);
 }
 
-export async function getReportById(id: string) {
+export async function getSubmissionRow(id: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("submissions").select("*").eq("id", id).maybeSingle();
 
@@ -177,16 +179,78 @@ export async function getReportById(id: string) {
     throw new Error(error.message);
   }
 
-  if (!data) {
+  return data ? (data as SubmissionRow) : null;
+}
+
+export async function getReportById(id: string) {
+  const row = await getSubmissionRow(id);
+  return row ? rowToReport(row) : null;
+}
+
+export class ReportAccessError extends Error {
+  status: number;
+  constructor(message: string, status = 403) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/** 按登录角色校验后可返回报告 */
+export async function getReportByIdForViewer(id: string, viewer: SessionProfile | null) {
+  const row = await getSubmissionRow(id);
+  if (!row) {
     return null;
   }
 
-  return rowToReport(data as SubmissionRow);
+  if (isAuthEnabled()) {
+    if (!viewer) {
+      throw new ReportAccessError("请先登录后查看报告。", 401);
+    }
+    if (viewer.role === "student") {
+      if (!row.submitter_id || row.submitter_id !== viewer.id) {
+        throw new ReportAccessError("无权查看该报告，请确认报告编号属于本人。");
+      }
+    }
+  }
+
+  return rowToReport(row);
+}
+
+export type StudentSubmissionItem = {
+  id: string;
+  projectName: string;
+  amount: string;
+  riskScore: number;
+  status: string;
+  submittedAt: string;
+};
+
+export async function listStudentSubmissions(submitterId: string): Promise<StudentSubmissionItem[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("id, project_name, amount, risk_score, status, submitted_at")
+    .eq("submitter_id", submitterId)
+    .order("submitted_at", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    projectName: row.project_name as string,
+    amount: row.amount as string,
+    riskScore: row.risk_score as number,
+    status: STATUS_DB_TO_LABEL[row.status as keyof typeof STATUS_DB_TO_LABEL] ?? String(row.status),
+    submittedAt: formatSubmittedAt(row.submitted_at as string),
+  }));
 }
 
 export async function createSubmission(
   payload: SubmissionPayload,
-  options?: { deferAgent?: boolean },
+  options?: { deferAgent?: boolean; submitterId?: string; ownerDisplay?: string },
 ) {
   const id = `2026-${Date.now().toString().slice(-6)}`;
   const deferAgent = options?.deferAgent === true;
@@ -204,14 +268,23 @@ export async function createSubmission(
       ? "申报已入库，请在运营台发起 AI 风控初审后再人工复核。"
       : "系统已接收合规申报，正在等待 Agent 风控评估与人工复核。");
 
+  const owner =
+    payload.owner?.trim() || options?.ownerDisplay?.trim() || "软件工程学院 申报人";
+  const submitterId = options?.submitterId ?? null;
+
+  const rowBase = {
+    submitter_id: submitterId,
+  };
+
   const row = deferAgent
     ? {
+        ...rowBase,
         id,
         project_name: payload.projectName.trim(),
         project_period: payload.projectPeriod.trim(),
         amount: payload.amount.trim(),
         notes: payload.notes?.trim() || null,
-        owner: payload.owner?.trim() || "软件工程学院 申报人",
+        owner,
         category: payload.category?.trim() || "",
         risk_score: 0,
         status: "pending" as const,
@@ -229,12 +302,13 @@ export async function createSubmission(
         ai_notes: ["申报已入库，待运营台 AI 风控初审。"],
       }
     : {
+        ...rowBase,
         id,
         project_name: payload.projectName.trim(),
         project_period: payload.projectPeriod.trim(),
         amount: payload.amount.trim(),
         notes: payload.notes?.trim() || null,
-        owner: payload.owner?.trim() || "软件工程学院 申报人",
+        owner,
         category: payload.category?.trim() || "",
         risk_score: 28,
         status: "pending" as const,
@@ -253,12 +327,19 @@ export async function createSubmission(
     throw new Error(error.message);
   }
 
+  if (submitterId) {
+    await enforceStudentSubmissionRetention(submitterId);
+  }
   await enforceAdminRetention();
 
   return rowToReport(data as SubmissionRow);
 }
 
-export async function reviewSubmission(id: string, result: AuditResult, actorName = "运营人员") {
+export async function reviewSubmission(
+  id: string,
+  result: AuditResult,
+  actorName = "运营人员",
+) {
   const supabase = getSupabaseAdmin();
 
   const { data: existing, error: fetchError } = await supabase.from("submissions").select("*").eq("id", id).maybeSingle();

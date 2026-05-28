@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { getClientTimeoutHeader, rateLimit, timeoutResponse, withTimeout } from "@/lib/server-guards";
-import { getReportById } from "@/lib/submissions-db";
+import { getSessionProfile, authErrorResponse } from "@/lib/auth/session";
+import { getReportByIdForViewer, ReportAccessError } from "@/lib/submissions-db";
 import { getMaterialCacheStatus } from "@/lib/report-material-cache-server";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +21,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   try {
     const { id } = await params;
-    const report = await withTimeout(getReportById(id), 5_000);
+    const viewer = await getSessionProfile();
+    const report = await withTimeout(getReportByIdForViewer(id, viewer), 5_000);
 
     if (!report) {
       return NextResponse.json({ ok: false, message: "未找到该风控报告。" }, { status: 404 });
@@ -28,6 +30,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({ ok: true, report, materialCache: getMaterialCacheStatus(id) });
   } catch (error) {
+    const authRes = authErrorResponse(error);
+    if (authRes) return authRes;
+
+    if (error instanceof ReportAccessError) {
+      return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+    }
+
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse();
     }

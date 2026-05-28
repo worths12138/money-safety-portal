@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { RiskAmountPieChart } from "@/components/RiskAmountPieChart";
 import { exportReportPdf } from "@/lib/export-report-pdf";
@@ -48,6 +49,11 @@ function loadingReport(id: string): ReportData {
 
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const pathname = usePathname();
+  const isStudentPortal = pathname?.startsWith("/student") ?? false;
+  const adminHref = isStudentPortal ? "/teacher/queue" : "/admin";
+  const preauditHref = isStudentPortal ? "/student/preaudit" : "/preaudit";
+  const statusHref = isStudentPortal ? "/student/status" : "/home";
   const [report, setReport] = useState<ReportData>(() => loadingReport(id));
   const [message, setMessage] = useState("正在拉取风控报告...");
   const [isPrinting, setIsPrinting] = useState(false);
@@ -232,8 +238,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             {pendingAgent ? (
               <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 本条尚未完成 AI 初审。请由教师在{" "}
-                <Link href="/admin" className="font-semibold underline">
-                  运营台
+                <Link href={adminHref} className="font-semibold underline">
+                  {isStudentPortal ? "教师端" : "运营台"}
                 </Link>{" "}
                 点击「AI 初审」，或在本页下方使用「重新识图评估」（凭证暂存有效期内）。
               </p>
@@ -245,28 +251,30 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             ) : cacheExpired ? (
               <p className="mt-1 text-xs text-amber-800">
                 凭证暂存已过期（提交后 {MATERIAL_CACHE_TTL_SEC} 秒内可重评）。请{" "}
-                <Link href="/preaudit" className="font-semibold underline">
-                  返回预审核
+                <Link href={preauditHref} className="font-semibold underline">
+                  {isStudentPortal ? "返回提交申报" : "返回预审核"}
                 </Link>{" "}
                 重新上传凭证。
               </p>
             ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleRerunAgent}
-              disabled={rerunningAgent || cacheExpired}
-              className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {rerunningAgent
-                ? "Agent 评估中…"
-                : canRerunVision
-                  ? "重新识图评估"
-                  : cacheExpired
-                    ? "暂存已过期"
-                    : "重新 Agent 评估"}
-            </button>
+            {!isStudentPortal ? (
+              <button
+                type="button"
+                onClick={handleRerunAgent}
+                disabled={rerunningAgent || cacheExpired}
+                className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {rerunningAgent
+                  ? "Agent 评估中…"
+                  : canRerunVision
+                    ? "重新识图评估"
+                    : cacheExpired
+                      ? "暂存已过期"
+                      : "重新 Agent 评估"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={handleExportPdf}
@@ -274,9 +282,17 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             >
               导出 PDF
             </button>
-            <Link href="/admin" className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-              返回后台
+            <Link href={adminHref} className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
+              {isStudentPortal ? "教师端" : "返回后台"}
             </Link>
+            {isStudentPortal ? (
+              <Link
+                href={statusHref}
+                className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                进度查询
+              </Link>
+            ) : null}
           </div>
         </div>
 

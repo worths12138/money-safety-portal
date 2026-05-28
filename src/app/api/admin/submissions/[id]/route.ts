@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
+import { authErrorResponse } from "@/lib/auth/session";
+import { getTeacherIfAuth } from "@/lib/auth/api-guard";
 import { deleteSubmissionById } from "@/lib/submission-retention";
 import { getClientTimeoutHeader, rateLimit, timeoutResponse, withTimeout } from "@/lib/server-guards";
 
@@ -18,10 +20,14 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   }
 
   try {
+    await getTeacherIfAuth();
     const { id } = await params;
     await withTimeout(deleteSubmissionById(id), 8_000);
     return NextResponse.json({ ok: true, message: "申报记录已删除。" });
   } catch (error) {
+    const authRes = authErrorResponse(error);
+    if (authRes) return authRes;
+
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse();
     }

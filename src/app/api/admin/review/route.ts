@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { getClientTimeoutHeader, rateLimit, timeoutResponse, withTimeout } from "@/lib/server-guards";
+import { authErrorResponse } from "@/lib/auth/session";
+import { getTeacherIfAuth } from "@/lib/auth/api-guard";
 import { parseReviewResult, reviewSubmission } from "@/lib/submissions-db";
 
 type ReviewBody = {
@@ -24,6 +26,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const teacher = await getTeacherIfAuth();
     const body = (await withTimeout(request.json(), 8_000)) as ReviewBody;
 
     if (!body.id || (body.status !== "通过" && body.status !== "驳回")) {
@@ -31,7 +34,8 @@ export async function POST(request: Request) {
     }
 
     const result = parseReviewResult(body.status);
-    const outcome = await withTimeout(reviewSubmission(body.id, result, body.actorName), 8_000);
+    const actorName = teacher?.displayName ?? body.actorName ?? "运营人员";
+    const outcome = await withTimeout(reviewSubmission(body.id, result, actorName), 8_000);
 
     return NextResponse.json({
       ok: true,
@@ -40,6 +44,9 @@ export async function POST(request: Request) {
       log: outcome.log,
     });
   } catch (error) {
+    const authRes = authErrorResponse(error);
+    if (authRes) return authRes;
+
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse();
     }

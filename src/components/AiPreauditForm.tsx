@@ -103,14 +103,23 @@ async function encodeMaterialFile(file: File) {
   return { name: prepared.name, type: prepared.type, b64: prepared.b64 };
 }
 
-export function AiPreauditForm() {
+type AiPreauditFormProps = {
+  /** student：提交后跳转学生报告页，文案指向教师端 */
+  portal?: "student" | "legacy";
+};
+
+export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
   const router = useRouter();
+  const reportBase = portal === "student" ? "/student/report" : "/report";
+  const reviewDeskLabel = portal === "student" ? "教师端" : "运营台";
   const [form, setForm] = useState(blankForm);
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState(
-    "填写申报信息并上传凭证后提交入库；图片将自动压缩。完整 AI 风控初审请在运营台（/admin）发起。",
+    portal === "student"
+      ? `填写申报信息并上传凭证后提交入库；图片将自动压缩。正式 AI 风控报告由指导教师在${reviewDeskLabel}发起初审后生成。`
+      : `填写申报信息并上传凭证后提交入库；图片将自动压缩。完整 AI 风控初审请在${reviewDeskLabel}（/admin）发起。`,
   );
 
   const visionCount = useMemo(() => storedFiles.filter((s) => isVisionFile(s.file)).length, [storedFiles]);
@@ -179,11 +188,11 @@ export function AiPreauditForm() {
 
       const payload = (await response.json()) as { id: string; message: string };
       setStatus(payload.message);
-      router.push(`/report/${payload.id}`);
+      router.push(`${reportBase}/${payload.id}`);
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "AbortError"
-          ? "上传超时。请减少单张图片体积或份数后重试；若已入库，请到运营台发起「AI 初审」。"
+          ? `上传超时。请减少单张图片体积或份数后重试；若已入库，请到${reviewDeskLabel}发起「AI 初审」。`
           : error instanceof Error
             ? error.message
             : "提交失败，请检查网络后重试。";
@@ -197,9 +206,13 @@ export function AiPreauditForm() {
   return (
     <div style={wrapStyle}>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: "#111827" }}>AI 风控预审</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: "#111827" }}>
+          {portal === "student" ? "提交报销申报" : "AI 风控预审"}
+        </h1>
         <p style={{ fontSize: 12, color: "#9ca3af", margin: "5px 0 0", lineHeight: 1.6 }}>
-          合规申报入库 · 凭证自动压缩上传 · 运营台发起 AI 风控初审并生成可解释报告
+          {portal === "student"
+            ? "合规申报入库 · 凭证自动压缩 · 教师在教师端发起 AI 初审后可在进度查询查看报告"
+            : "合规申报入库 · 凭证自动压缩上传 · 运营台发起 AI 风控初审并生成可解释报告"}
         </p>
       </div>
 
@@ -283,7 +296,7 @@ export function AiPreauditForm() {
             <div style={{ fontSize: 26, marginBottom: 6 }}>📁</div>
             <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>点击或拖拽上传（PDF / JPG / PNG / WEBP）</p>
             <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>
-              图片上传前自动压缩（建议原图清晰）· 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · AI 初审在运营台执行
+              图片上传前自动压缩 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · AI 初审在{reviewDeskLabel}执行
             </p>
           </label>
 

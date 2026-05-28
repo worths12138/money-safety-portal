@@ -4,37 +4,31 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
-
-const navItems = [
-  { href: "/home", label: "首页", match: "/home", shortLabel: "首" },
-  { href: "/preaudit", label: "AI 风控预审", match: "/preaudit", shortLabel: "审" },
-  { href: "/report/2026-041", label: "风控报告", match: "/report", shortLabel: "报" },
-  { href: "/admin", label: "管理后台", match: "/admin", shortLabel: "管" },
-  { href: "/admin/rules", label: "规则配置", match: "/admin/rules", shortLabel: "规" },
-];
-
-/** 取最长匹配项，避免 /admin/rules 同时点亮 /admin */
-function resolveActiveNavMatch(pathname: string): string | null {
-  const matches = navItems
-    .filter(
-      (item) =>
-        pathname === item.match ||
-        (item.match !== "/" && pathname.startsWith(`${item.match}/`)),
-    )
-    .sort((a, b) => b.match.length - a.match.length);
-  return matches[0]?.match ?? null;
-}
+import { AuthHeaderBar } from "@/components/AuthHeaderBar";
+import {
+  brandHrefForRole,
+  navItemsForRole,
+  resolveActiveNavMatch,
+  resolvePortalRole,
+  switchPortalLink,
+} from "@/lib/portal-nav";
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const portalRole = useMemo(() => resolvePortalRole(pathname), [pathname]);
+  const navItems = useMemo(() => navItemsForRole(portalRole), [portalRole]);
   const activeNavMatch = useMemo(
-    () => (pathname ? resolveActiveNavMatch(pathname) : null),
-    [pathname],
+    () => (pathname ? resolveActiveNavMatch(pathname, navItems) : null),
+    [pathname, navItems],
   );
+  const brandHref = brandHrefForRole(portalRole);
+  const switchLink = switchPortalLink(portalRole);
   const isStart = pathname === "/";
   const backgroundImage = useMemo(() => {
     if (isStart) return "/api/photos/start";
     if (!pathname) return "/api/photos/home";
+    if (pathname.startsWith("/teacher")) return "/api/photos/admin";
+    if (pathname.startsWith("/student")) return "/api/photos/submit";
     if (pathname.startsWith("/admin/rules")) return "/api/photos/last";
     if (pathname.startsWith("/admin")) return "/api/photos/admin";
     if (pathname.startsWith("/report")) return "/api/photos/report";
@@ -52,6 +46,23 @@ export function SiteShell({ children }: { children: ReactNode }) {
       ],
     [],
   );
+
+  const footerText =
+    portalRole === "student"
+      ? {
+          a: "学生端：提交申报与进度查询；正式风控报告由教师端 AI 初审后生成。",
+          b: "图片自动压缩上传，减轻服务器压力。",
+        }
+      : portalRole === "teacher"
+        ? {
+            a: "教师端：复核队列、AI 初审、通过/驳回与规则配置。",
+            b: "金融合规风控：规则引擎 + 多模态 Agent + 人工终审闭环。",
+          }
+        : {
+            a: "AI 风控预审：申报总金额、凭据识图、金额一致性校验与风控报告一体化。",
+            b: "支持 PDF/图片解析、运营台复核与规则配置；合规风控风险分越高表示风险越大。",
+          };
+
   return (
     <div className="site-shell-root relative h-screen overflow-hidden text-slate-900">
       <div className="site-shell-bg pointer-events-none absolute inset-0">
@@ -66,7 +77,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <header className="site-header no-print sticky top-0 z-[100] backdrop-blur">
           <div className="relative z-[2] flex w-full flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
             <div className="site-header-brand relative z-[3] flex min-w-0 items-center gap-2 sm:gap-3">
-              <Link href="/home" className="site-header-logo relative z-[4] shrink-0" title="中山大学">
+              <Link href={brandHref} className="site-header-logo relative z-[4] shrink-0" title="中山大学">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/sysu-logo-nav.png?v=2"
@@ -80,7 +91,13 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 <p className="site-header-brand-sub text-xs font-semibold uppercase tracking-[0.24em]">
                   软件工程学院
                 </p>
-                <p className="site-header-brand-title text-sm font-semibold">大创报销经费合规风控平台</p>
+                <p className="site-header-brand-title text-sm font-semibold">
+                  {portalRole === "student"
+                    ? "学生端 · 报销合规申报"
+                    : portalRole === "teacher"
+                      ? "教师端 · 合规风控复核"
+                      : "大创报销经费合规风控平台"}
+                </p>
               </div>
             </div>
 
@@ -97,6 +114,24 @@ export function SiteShell({ children }: { children: ReactNode }) {
                   </Link>
                 );
               })}
+              {switchLink ? (
+                <Link
+                  href={switchLink.href}
+                  className="site-header-nav-link ml-2 rounded-sm border border-white/30"
+                >
+                  {switchLink.label}
+                </Link>
+              ) : null}
+              {portalRole === "entry" ? (
+                <>
+                  <Link href="/student" className="site-header-nav-link rounded-sm">
+                    学生端
+                  </Link>
+                  <Link href="/teacher/queue" className="site-header-nav-link rounded-sm">
+                    教师端
+                  </Link>
+                </>
+              ) : null}
             </nav>
           </div>
         </header>
@@ -105,23 +140,26 @@ export function SiteShell({ children }: { children: ReactNode }) {
           <div className="site-shell-decor pointer-events-none absolute inset-0">
             {!isStart &&
               decorations.map((item, index) => (
-              <span
-                key={`dot-${index}`}
-                className="absolute rounded-[24px] bg-white/70"
-                style={{
-                  top: item.top,
-                  right: item.right,
-                  width: `${item.size}px`,
-                  height: `${item.size}px`,
-                  opacity: item.opacity,
-                }}
-              />
+                <span
+                  key={`dot-${index}`}
+                  className="absolute rounded-[24px] bg-white/70"
+                  style={{
+                    top: item.top,
+                    right: item.right,
+                    width: `${item.size}px`,
+                    height: `${item.size}px`,
+                    opacity: item.opacity,
+                  }}
+                />
               ))}
           </div>
-          <main className="relative flex-1 pb-10">{children}</main>
+          <main className="relative flex-1 pb-10">
+            <AuthHeaderBar />
+            {children}
+          </main>
           <footer className="no-print relative mb-2 flex flex-col gap-2 border-t border-slate-200 py-5 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-            <p>AI 风控预审（/preaudit）：申报总金额、凭据识图、金额一致性校验与风控报告一体化。</p>
-            <p>支持 PDF/图片解析、运营台复核与规则配置；合规风控风险分越高表示风险越大。</p>
+            <p>{footerText.a}</p>
+            <p>{footerText.b}</p>
           </footer>
         </section>
       </div>

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/auth/session";
+import { getTeacherIfAuth } from "@/lib/auth/api-guard";
 import { getComplianceRules, saveComplianceRules } from "@/lib/compliance-rules";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
 
@@ -33,6 +35,7 @@ export async function PUT(request: Request) {
   }
 
   try {
+    await getTeacherIfAuth();
     const payload = (await withTimeout(request.json(), 8_000)) as {
       allowedCategories: string[];
       amountLimit: string;
@@ -48,6 +51,9 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ ok: true, message: persistHint, rules });
   } catch (error) {
+    const authRes = authErrorResponse(error);
+    if (authRes) return authRes;
+
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse();
     }

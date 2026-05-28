@@ -10,6 +10,7 @@ export type SubmissionRow = {
   amount: string;
   notes: string | null;
   owner: string;
+  submitter_id: string | null;
   category: string;
   risk_score: number;
   status: SubmissionStatus;

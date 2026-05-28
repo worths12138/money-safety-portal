@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse } from "@/lib/auth/session";
+import { getTeacherIfAuth } from "@/lib/auth/api-guard";
+import { checkTeacherAgentQuota } from "@/lib/auth/teacher-agent-limit";
 import { runAgentReview, type AgentReviewInput } from "@/lib/agent-review";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { getMaterialCacheStatus } from "@/lib/report-material-cache-server";
@@ -24,6 +27,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    const teacher = await getTeacherIfAuth();
+    if (teacher) {
+      const quota = checkTeacherAgentQuota(teacher.id);
+      if (!quota.allowed) {
+        return NextResponse.json({ ok: false, message: quota.message }, { status: 429 });
+      }
+    }
+
     const body = (await withTimeout(request.json(), 30_000)) as AgentReviewBody;
     if (!body.reportId?.trim()) {
       return NextResponse.json({ ok: false, message: "缺少 reportId。" }, { status: 400 });
@@ -52,6 +63,9 @@ export async function POST(request: Request) {
       materialCache: getMaterialCacheStatus(result.reportId),
     });
   } catch (error) {
+    const authRes = authErrorResponse(error);
+    if (authRes) return authRes;
+
     if (error instanceof Error && error.message.includes("超时")) {
       return timeoutResponse(error.message, 504);
     }

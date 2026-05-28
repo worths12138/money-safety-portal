@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   adminAuditLogFieldDefinitions,
@@ -13,6 +14,10 @@ import type { OperationLog, QueueItem } from "@/lib/site-data";
 type QueueStatus = "待审核" | "通过" | "驳回";
 
 export default function AdminPage() {
+  const pathname = usePathname();
+  const isTeacherPortal = pathname?.startsWith("/teacher") ?? false;
+  const rulesHref = isTeacherPortal ? "/teacher/rules" : "/admin/rules";
+
   const [riskFilter, setRiskFilter] = useState<"全部" | "低" | "中" | "高">("全部");
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [logs, setLogs] = useState<OperationLog[]>([]);
@@ -250,13 +255,17 @@ export default function AdminPage() {
       <section className="sysu-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规风控运营台</h2>
+            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">
+              {isTeacherPortal ? "/teacher" : "/admin"}
+            </p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+              {isTeacherPortal ? "教师合规风控复核台" : "合规风控运营台"}
+            </h2>
             <p className="mt-2 text-sm text-slate-500">
               学生端提交后在此发起 AI 风控初审，再按风险分级通过或驳回；可删除单条申报或审核记录。
             </p>
           </div>
-          <Link href="/admin/rules" className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
+          <Link href={rulesHref} className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
             打开规则配置
           </Link>
         </div>
