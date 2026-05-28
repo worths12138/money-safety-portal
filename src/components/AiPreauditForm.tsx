@@ -2,6 +2,7 @@
 
 import { type DragEvent, type FormEvent, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { prepareFileForUpload } from "@/lib/image-compress-client";
 import {
   materialCountWarnMessage,
   MATERIAL_COUNT_WARN_THRESHOLD,
@@ -97,20 +98,9 @@ function mergeFiles(current: StoredFile[], incoming: FileList | null) {
   return Array.from(map.values()).slice(0, MAX_MATERIAL_FILES);
 }
 
-function fileToBase64(file: File): Promise<{ name: string; type: string; b64: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve({
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        b64: result.split(",")[1] ?? "",
-      });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+async function encodeMaterialFile(file: File) {
+  const prepared = await prepareFileForUpload(file);
+  return { name: prepared.name, type: prepared.type, b64: prepared.b64 };
 }
 
 export function AiPreauditForm() {
@@ -119,7 +109,9 @@ export function AiPreauditForm() {
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState("填写申报信息并上传凭证后，提交将自动识图并生成风控报告。");
+  const [status, setStatus] = useState(
+    "填写申报信息并上传凭证后提交入库；图片将自动压缩。完整 AI 风控初审请在运营台（/admin）发起。",
+  );
 
   const visionCount = useMemo(() => storedFiles.filter((s) => isVisionFile(s.file)).length, [storedFiles]);
   const nonVisionCount = storedFiles.length - visionCount;
@@ -156,17 +148,17 @@ export function AiPreauditForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setStatus("正在上传凭证：PDF 本地解析 + 图片金额识图，随后生成风控报告…");
+    setStatus("正在压缩并上传凭证（图片自动缩小体积）…");
 
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 240_000);
+    const timer = window.setTimeout(() => controller.abort(), 90_000);
 
     try {
       const visionFiles = storedFiles.filter((s) => isVisionFile(s.file)).map((s) => s.file);
-      setStatus(`正在编码 ${visionFiles.length} 份识图凭证…`);
-      const materials = await Promise.all(visionFiles.map(fileToBase64));
+      setStatus(`正在处理 ${visionFiles.length} 份识图凭证（压缩/编码）…`);
+      const materials = await Promise.all(visionFiles.map(encodeMaterialFile));
 
-      setStatus("正在提交并生成风控报告（约 1～4 分钟，请勿关闭页面）…");
+      setStatus("正在提交申报（约 10～30 秒，请勿关闭页面）…");
 
       const response = await fetch("/api/submissions", {
         method: "POST",
@@ -175,6 +167,7 @@ export function AiPreauditForm() {
           ...form,
           materialFiles: storedFiles.map((s) => s.file.name),
           materials,
+          runAgent: false,
         }),
         signal: controller.signal,
       });
@@ -190,7 +183,7 @@ export function AiPreauditForm() {
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "AbortError"
-          ? "请求超时（凭证较多时常见）。请缩小图片体积或减少文件数后重试，或稍后在报告页使用「重新识图评估」。"
+          ? "上传超时。请减少单张图片体积或份数后重试；若已入库，请到运营台发起「AI 初审」。"
           : error instanceof Error
             ? error.message
             : "提交失败，请检查网络后重试。";
@@ -206,7 +199,7 @@ export function AiPreauditForm() {
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: "#111827" }}>AI 风控预审</h1>
         <p style={{ fontSize: 12, color: "#9ca3af", margin: "5px 0 0", lineHeight: 1.6 }}>
-          合规申报信息入库 · 凭证多模态识图 · 自动生成可解释风控报告（格式与风控报告页一致）
+          合规申报入库 · 凭证自动压缩上传 · 运营台发起 AI 风控初审并生成可解释报告
         </p>
       </div>
 
@@ -290,7 +283,7 @@ export function AiPreauditForm() {
             <div style={{ fontSize: 26, marginBottom: 6 }}>📁</div>
             <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>点击或拖拽上传（PDF / JPG / PNG / WEBP）</p>
             <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9ca3af" }}>
-              PDF 本地解析（PyMuPDF 优先）；图片视觉审核 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · {MATERIAL_COUNT_WARN_THRESHOLD} 份以上可能接近超时
+              图片上传前自动压缩（建议原图清晰）· 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · AI 初审在运营台执行
             </p>
           </label>
 
@@ -328,7 +321,7 @@ export function AiPreauditForm() {
 
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 10 }}>
           <button type="submit" disabled={submitting || visionCount === 0} style={primaryBtnStyle(!submitting && visionCount > 0)}>
-            {submitting ? "识图审核中…" : "提交并生成风控报告"}
+            {submitting ? "提交中…" : "提交申报（入库）"}
           </button>
         </div>
 

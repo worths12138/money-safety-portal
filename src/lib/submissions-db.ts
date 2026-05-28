@@ -27,6 +27,8 @@ export type SubmissionPayload = {
   category?: string;
   materialFiles?: string[];
   materials?: SubmissionMaterialPayload[];
+  /** 是否在提交时同步跑 Agent；默认由环境变量 AUTO_AGENT_ON_SUBMIT 决定 */
+  runAgent?: boolean;
 };
 
 function formatSubmittedAt(iso: string) {
@@ -182,34 +184,67 @@ export async function getReportById(id: string) {
   return rowToReport(data as SubmissionRow);
 }
 
-export async function createSubmission(payload: SubmissionPayload) {
+export async function createSubmission(
+  payload: SubmissionPayload,
+  options?: { deferAgent?: boolean },
+) {
   const id = `2026-${Date.now().toString().slice(-6)}`;
+  const deferAgent = options?.deferAgent === true;
   const materialHint =
     payload.materials && payload.materials.length > 0
-      ? `已上传 ${payload.materials.length} 份凭证，Agent 将进行多模态识图审核。`
+      ? deferAgent
+        ? `已上传 ${payload.materials.length} 份凭证，待运营台发起 AI 风控初审。`
+        : `已上传 ${payload.materials.length} 份凭证，Agent 将进行多模态识图审核。`
       : payload.materialFiles?.length
         ? `已登记 ${payload.materialFiles.length} 个文件名（未传文件内容，仅文字风控）。`
         : "";
-  const summary = [payload.notes?.trim(), materialHint].filter(Boolean).join(" ") ||
-    "系统已接收合规申报，正在等待 Agent 风控评估与人工复核。";
+  const summary =
+    [payload.notes?.trim(), materialHint].filter(Boolean).join(" ") ||
+    (deferAgent
+      ? "申报已入库，请在运营台发起 AI 风控初审后再人工复核。"
+      : "系统已接收合规申报，正在等待 Agent 风控评估与人工复核。");
 
-  const row = {
-    id,
-    project_name: payload.projectName.trim(),
-    project_period: payload.projectPeriod.trim(),
-    amount: payload.amount.trim(),
-    notes: payload.notes?.trim() || null,
-    owner: payload.owner?.trim() || "软件工程学院 申报人",
-    category: payload.category?.trim() || "",
-    risk_score: 28,
-    status: "pending" as const,
-    summary,
-    conclusion: "已生成风控初审结论，建议人工复核后归档。",
-    risk_rows: defaultRiskRows,
-    findings: defaultFindings(),
-    recommendations: ["补齐留白凭证后提交终审", "特殊合规条款请先在规则页维护"],
-    ai_notes: ["正在等待 GLM-5V-Turbo Agent 生成风控结论…"],
-  };
+  const row = deferAgent
+    ? {
+        id,
+        project_name: payload.projectName.trim(),
+        project_period: payload.projectPeriod.trim(),
+        amount: payload.amount.trim(),
+        notes: payload.notes?.trim() || null,
+        owner: payload.owner?.trim() || "软件工程学院 申报人",
+        category: payload.category?.trim() || "",
+        risk_score: 0,
+        status: "pending" as const,
+        summary,
+        conclusion: "待 AI 风控初审",
+        risk_rows: defaultRiskRows,
+        findings: [
+          {
+            title: "待 AI 初审",
+            level: "低",
+            detail: "凭证已暂存，请在运营台点击「AI 初审」生成正式风控报告。",
+          },
+        ],
+        recommendations: ["由运营人员在 /admin 发起 AI 初审", "初审完成后再执行通过或驳回"],
+        ai_notes: ["申报已入库，待运营台 AI 风控初审。"],
+      }
+    : {
+        id,
+        project_name: payload.projectName.trim(),
+        project_period: payload.projectPeriod.trim(),
+        amount: payload.amount.trim(),
+        notes: payload.notes?.trim() || null,
+        owner: payload.owner?.trim() || "软件工程学院 申报人",
+        category: payload.category?.trim() || "",
+        risk_score: 28,
+        status: "pending" as const,
+        summary,
+        conclusion: "已生成风控初审结论，建议人工复核后归档。",
+        risk_rows: defaultRiskRows,
+        findings: defaultFindings(),
+        recommendations: ["补齐留白凭证后提交终审", "特殊合规条款请先在规则页维护"],
+        ai_notes: ["正在等待 GLM-5V-Turbo Agent 生成风控结论…"],
+      };
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("submissions").insert(row).select("*").single();

@@ -110,8 +110,8 @@ npm start
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/submissions` | POST | 提交预审（含凭证 base64） |
-| `/api/agent/review` | POST | 重新 Agent 评估 |
+| `/api/submissions` | POST | 提交申报（默认仅入库；`runAgent:true` 或 `AUTO_AGENT_ON_SUBMIT=true` 时同步 Agent） |
+| `/api/agent/review` | POST | 运营台 AI 初审 / 报告页重新评估 |
 | `/api/reports/[id]` | GET | 获取风控报告 |
 | `/api/pdf/extract` | POST | 单份 PDF 文字/金额提取 |
 | `/api/admin/queue` | GET | 运营队列 |
@@ -157,6 +157,8 @@ scripts/
 
 - 平台 **不存储** 上传的凭证文件，仅处理 base64 并写入风控结论。
 - 智谱 API 有速率限制；多份 PDF/图片会串行调用，凭证较多时请耐心等待。
+- **生产推荐**：`AUTO_AGENT_ON_SUBMIT=false`，学生在 `/preaudit` 提交后，教师在 `/admin` 点「AI 初审」；图片会在浏览器自动压缩。
+- 腾讯云部署见 [`docs/DEPLOY_TENCENT_LIGHTHOUSE.md`](docs/DEPLOY_TENCENT_LIGHTHOUSE.md)（含 Nginx `client_max_body_size 50m`）。
 - 部署到 Vercel 等平台时，需配置环境变量；PyMuPDF 需在支持 Python 的运行环境或本地部署。
 - 运营台删除最早记录后，对应 `/report/[id]` 链接将失效。
 

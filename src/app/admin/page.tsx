@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [agentRunningId, setAgentRunningId] = useState<string | null>(null);
   const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
   const [purging, setPurging] = useState(false);
@@ -151,6 +152,53 @@ export default function AdminPage() {
     }
   }
 
+  async function runAgentReview(id: string, projectName: string) {
+    if (
+      !window.confirm(
+        `对「${projectName}」发起 AI 风控初审？\n将调用智谱多模态识图（凭证较多时约 1～4 分钟），请保持网络畅通。`,
+      )
+    ) {
+      return;
+    }
+
+    setAgentRunningId(id);
+    setError("");
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 300_000);
+
+    try {
+      const response = await fetch("/api/agent/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId: id }),
+        signal: controller.signal,
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        report?: { riskScore?: number };
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message ?? "AI 初审失败");
+      }
+
+      await loadData();
+    } catch (err) {
+      const message =
+        err instanceof DOMException && err.name === "AbortError"
+          ? "AI 初审超时。请减少凭证张数或压缩图片后，在报告页重试。"
+          : err instanceof Error
+            ? err.message
+            : "AI 初审失败";
+      setError(message);
+    } finally {
+      window.clearTimeout(timer);
+      setAgentRunningId(null);
+    }
+  }
+
   async function updateStatus(id: string, status: QueueStatus) {
     if (status === "待审核") {
       return;
@@ -205,7 +253,7 @@ export default function AdminPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规风控运营台</h2>
             <p className="mt-2 text-sm text-slate-500">
-              按风险分级筛选申报，一键通过或驳回；可删除单条申报或审核记录，也可一键清空全部数据。
+              学生端提交后在此发起 AI 风控初审，再按风险分级通过或驳回；可删除单条申报或审核记录。
             </p>
           </div>
           <Link href="/admin/rules" className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
@@ -287,6 +335,18 @@ export default function AdminPage() {
                   <div className="font-medium text-slate-700">{item.status}</div>
                   <div className="text-slate-500">{item.submittedAt}</div>
                   <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={
+                        agentRunningId === item.id ||
+                        reviewingId === item.id ||
+                        deletingSubmissionId === item.id
+                      }
+                      onClick={() => void runAgentReview(item.id, item.projectName)}
+                      className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {agentRunningId === item.id ? "AI 初审中…" : "AI 初审"}
+                    </button>
                     <button
                       type="button"
                       disabled={reviewingId === item.id || deletingSubmissionId === item.id || item.status !== "待审核"}

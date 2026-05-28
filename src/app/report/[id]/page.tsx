@@ -25,6 +25,7 @@ import {
   type MaterialCacheInfo,
   MATERIAL_CACHE_TTL_SEC,
   reportHadVisionAudit,
+  reportPendingAgentReview,
 } from "@/lib/report-material-status";
 
 function loadingReport(id: string): ReportData {
@@ -60,6 +61,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   });
 
   const hadVisionAudit = useMemo(() => reportHadVisionAudit(report.aiNotes ?? []), [report.aiNotes]);
+  const pendingAgent = useMemo(() => reportPendingAgentReview(report), [report]);
   const canRerunVision = materialCache.available && materialCache.ttlSecondsLeft > 0;
   const cacheExpired = hadVisionAudit && !canRerunVision;
 
@@ -227,6 +229,15 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/report/{id}</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">大创报销经费合规风控报告</h2>
             <p className="mt-2 text-sm text-slate-500">{message}</p>
+            {pendingAgent ? (
+              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                本条尚未完成 AI 初审。请由教师在{" "}
+                <Link href="/admin" className="font-semibold underline">
+                  运营台
+                </Link>{" "}
+                点击「AI 初审」，或在本页下方使用「重新识图评估」（凭证暂存有效期内）。
+              </p>
+            ) : null}
             {canRerunVision ? (
               <p className="mt-1 text-xs text-emerald-700">
                 凭证暂存可用：{materialCache.count} 份，剩余 {materialCache.ttlSecondsLeft} 秒后可重新识图评估

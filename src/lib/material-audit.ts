@@ -7,9 +7,11 @@ import {
 import { getFullAuditRulesPrompt } from "@/lib/compliance-rules";
 import { extractPdfFromBase64 } from "@/lib/pdf-extract";
 import { extractAmountsFromImages } from "@/lib/voucher-image-amount";
+import { MAX_MULTIMODAL_IMAGES_PER_CALL } from "@/lib/material-limits";
 import { SUBMISSION_REPORT_FORMAT } from "@/lib/reimbursement-audit-prompts";
 import { sleep } from "@/lib/zhipu-upstream";
 import { zhipuChatCompletion, type ZhipuMessage } from "@/lib/zhipu";
+import type { ImageAmountExtraction } from "@/lib/voucher-image-amount";
 
 export type UploadedMaterial = {
   name: string;
@@ -164,6 +166,18 @@ export async function runVisionAgentAudit(input: {
   const recon = compareDeclaredAndVoucher(input.amount, voucherSummary);
   const amountReconHint = buildReconPromptHint(recon);
 
+  const imagesForMultimodal = images.slice(0, MAX_MULTIMODAL_IMAGES_PER_CALL);
+  const overflowExtractions: ImageAmountExtraction[] =
+    images.length > MAX_MULTIMODAL_IMAGES_PER_CALL
+      ? imageExtractions.slice(MAX_MULTIMODAL_IMAGES_PER_CALL)
+      : [];
+  const overflowImageText =
+    overflowExtractions.length > 0
+      ? `\n【其余 ${overflowExtractions.length} 张凭据（已逐张识图，未再附图以防超出模型限制）】\n${overflowExtractions
+          .map((e) => `• ${e.name}\n${e.text}`)
+          .join("\n")}`
+      : "";
+
   const markdown = await zhipuChatCompletion({
     system: VISION_AUDIT_SYSTEM,
     messages: buildMultimodalAuditMessages({
@@ -171,8 +185,8 @@ export async function runVisionAgentAudit(input: {
       projectPeriod: input.projectPeriod,
       amount: input.amount,
       notes: input.notes,
-      pdfText,
-      images,
+      pdfText: pdfText + overflowImageText,
+      images: imagesForMultimodal,
       skippedNames,
       fullRulesPrompt,
       amountReconHint,
