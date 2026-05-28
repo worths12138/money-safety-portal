@@ -21,7 +21,8 @@ import {
 } from "@/lib/risk-score";
 import { defaultRules } from "@/lib/site-data";
 import { defaultRiskRows, type ReportData, reportMaterialTypes } from "@/lib/site-data";
-import { normalizeRiskRowsForAmount } from "@/lib/risk-amount-breakdown";
+import { normalizeRiskRowsForAmount, riskRowsForTableDisplay } from "@/lib/risk-amount-breakdown";
+import { ReportMaterialsPanel } from "@/components/ReportMaterialsPanel";
 import {
   type MaterialCacheInfo,
   MATERIAL_CACHE_TTL_SEC,
@@ -187,9 +188,17 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     }
   }, [cacheExpired, canRerunVision, id, loadReport, materialCache.count]);
 
-  const riskRows = useMemo(
-    () => normalizeRiskRowsForAmount(report.riskRows?.length ? report.riskRows : defaultRiskRows, report.amount || ""),
-    [report.riskRows, report.amount],
+  const rawRiskRows = useMemo(
+    () => (report.riskRows?.length ? report.riskRows : defaultRiskRows),
+    [report.riskRows],
+  );
+  const riskRowsForTable = useMemo(
+    () => riskRowsForTableDisplay(rawRiskRows, report.amount || ""),
+    [rawRiskRows, report.amount],
+  );
+  const riskRowsForChart = useMemo(
+    () => normalizeRiskRowsForAmount(rawRiskRows, report.amount || ""),
+    [rawRiskRows, report.amount],
   );
   const auditMarkdown =
     report.aiNotes?.find((note) => note.includes("##") || note.length > 400) ?? report.aiNotes?.join("\n");
@@ -344,14 +353,20 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
           </div>
           <RiskAmountPieChart
             declaredAmount={report.amount || ""}
-            riskRows={riskRows}
+            riskRows={riskRowsForChart}
             riskScore={effectiveRiskScore}
             markdown={auditMarkdown}
           />
           <RiskBar score={effectiveRiskScore} className="hidden print:block" />
         </div>
 
-        <RiskTableSection rows={riskRows} printMode={isPrinting} />
+        <ReportMaterialsPanel reportId={id} initialCache={materialCache} />
+
+        <RiskTableSection
+          rows={riskRowsForTable}
+          printMode={isPrinting}
+          pendingAgent={pendingAgent}
+        />
       </section>
 
       <aside className="no-print flex flex-col gap-5">
@@ -385,12 +400,20 @@ function RiskBar({ score, className = "" }: { score: number; className?: string 
   );
 }
 
-function RiskTableSection({ rows, printMode }: { rows: ReportData["riskRows"]; printMode?: boolean }) {
-  const tags = [...new Set(rows.map((row) => row.tag))];
+function RiskTableSection({
+  rows,
+  printMode,
+  pendingAgent,
+}: {
+  rows: ReportData["riskRows"];
+  printMode?: boolean;
+  pendingAgent?: boolean;
+}) {
+  const tags = [...new Set(rows.map((row) => row.tag).filter(Boolean))];
   const [selectedTags, setSelectedTags] = useState<string[]>(tags);
 
   useEffect(() => {
-    setSelectedTags([...new Set(rows.map((row) => row.tag))]);
+    setSelectedTags([...new Set(rows.map((row) => row.tag).filter(Boolean))]);
   }, [rows]);
 
   useEffect(() => {
@@ -447,7 +470,11 @@ function RiskTableSection({ rows, printMode }: { rows: ReportData["riskRows"]; p
             {filteredRows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
-                  请选择至少一个问题标签以查看对应风险项
+                  {rows.length === 0
+                    ? pendingAgent
+                      ? "尚未完成 AI 初审：请教师在复核队列点击「AI 初审」，或确认申报后暂存未过期。"
+                      : "暂无风险表数据。若已完成初审仍为空，请重新发起 AI 初审。"
+                    : "请选择至少一个问题标签以查看对应风险项（可点「全选」）"}
                 </td>
               </tr>
             ) : (

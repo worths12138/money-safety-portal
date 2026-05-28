@@ -149,6 +149,12 @@ export function normalizeRiskRowsForAmount(riskRows: RiskRow[], declaredAmount: 
   return mergeSameAmountRiskRows(expenseRows);
 }
 
+/** 报告页风险表展示：保留「待确认」等无数字金额行，仅去掉汇总行 */
+export function riskRowsForTableDisplay(riskRows: RiskRow[], declaredAmount: string): RiskRow[] {
+  const declaredYuan = parseMoneyString(declaredAmount);
+  return riskRows.filter((row) => !isAggregateRiskRow(row, declaredYuan));
+}
+
 function parseSection4Amounts(markdown: string): Partial<AmountBreakdown> {
   const section = markdown.split(/##\s*四、金额风险汇总/i)[1]?.split(/##\s*五、/i)[0];
   if (!section) return {};

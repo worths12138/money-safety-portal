@@ -15,7 +15,10 @@ export function reportPendingAgentReview(report: {
   return report.riskScore === 0 && (report.aiNotes ?? []).some((n) => /待运营台|待 AI/.test(n));
 }
 
-export const MATERIAL_CACHE_TTL_SEC = 240;
+import { materialCacheTtlSec } from "@/lib/report-material-cache-server";
+
+/** 与服务器 MATERIAL_CACHE_TTL_SEC 环境变量一致（默认 3 小时） */
+export const MATERIAL_CACHE_TTL_SEC = materialCacheTtlSec();
 
 export type MaterialCacheInfo = {
   available: boolean;
