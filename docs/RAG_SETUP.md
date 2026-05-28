@@ -4,7 +4,8 @@
 
 | 路径 | 说明 |
 |------|------|
-| `data/reimbursement-rag-rules.json` | 结构化规则库（14 条，R001–R014） |
+| `data/reimbursement-rag-rules.json` | 结构化规则库 **v1.3**（14 条：R001–R005、R007–R012、R014–R016） |
+| `docs/rag/CHANGELOG_v1.3.md` | v1.3 变更说明 |
 | `data/extracted_rules_raw.txt` | 可选：原始制度摘录，供人工扩库参考（不参与运行时检索） |
 
 更新规则时：编辑 JSON 后重启 Next.js 进程（开发环境热重载可能缓存，生产需 `pm2 restart`）。
@@ -12,7 +13,8 @@
 ## 召回方式
 
 轻量 **关键词匹配**（见 `src/lib/rag/retrieve.ts`），与《RAG库发送教程与注意事项》一致。  
-每次最多注入 **8 条**命中规则到教师 Agent Prompt，避免撑爆上下文。
+每次最多注入 **8 条**命中规则到教师 Agent Prompt，避免撑爆上下文。  
+若同时命中 R005（按量 API）与 R014（包月会员），Prompt 会附带 `meta.conflict_handling` 指引。
 
 ## 功能入口
 

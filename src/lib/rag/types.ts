@@ -18,6 +18,8 @@ export type ReimbursementRagLibrary = {
     created_at?: string;
     source_materials?: string[];
     description?: string;
+    /** v1.3+：R005 与 R014 等冲突时的模型判断指引 */
+    conflict_handling?: string;
   };
   rules: ReimbursementRagRule[];
 };
