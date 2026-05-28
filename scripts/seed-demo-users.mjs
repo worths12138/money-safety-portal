@@ -5,6 +5,7 @@
  * 默认密码：环境变量 DEMO_AUTH_PASSWORD，未设置则为 MspDemo2026!
  */
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -40,6 +41,7 @@ if (!url || !serviceKey) {
 
 const supabase = createClient(url, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: ws },
 });
 
 const users = [
