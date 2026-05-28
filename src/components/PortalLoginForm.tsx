@@ -61,7 +61,8 @@ export function PortalLoginForm({ role, title, subtitle, defaultNext, otherPorta
 
         {roleError ? (
           <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            当前账号与入口不匹配，请使用正确的学生/教师账号登录。
+            当前账号与入口不匹配：请用右上角「教师端 / 学生端」进入对应登录页，或先退出已登录账号后再试。
+            {role === "teacher" ? " 教师账号请使用 teacher1。" : " 学生账号请使用 student1。"}
           </p>
         ) : null}
 

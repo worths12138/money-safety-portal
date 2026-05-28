@@ -25,6 +25,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const brandHref = brandHrefForRole(portalRole);
   const switchLink = switchPortalLink(portalRole);
   const isStart = pathname === "/";
+  const isTeacherLogin = pathname === "/teacher/login";
+  const isStudentLogin = pathname === "/student/login";
+  const showEntryHeader = portalRole === "entry";
   const backgroundImage = useMemo(() => {
     if (isStart) return "/api/photos/start";
     if (!pathname) return "/api/photos/home";
@@ -77,19 +80,19 @@ export function SiteShell({ children }: { children: ReactNode }) {
       <div className="site-shell-scroll relative z-10 h-screen overflow-y-auto scroll-smooth">
         <header className="site-header no-print sticky top-0 z-[100] backdrop-blur">
           <div className="relative z-[2] flex w-full flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
-            <div className="site-header-brand relative z-[3] flex min-w-0 items-center gap-2 sm:gap-3">
-              <Link
-                href={brandHref}
-                className="site-header-logo relative z-[4] shrink-0"
-                title={portalRole === "entry" ? "返回身份选择（登录入口在右上角）" : "返回工作台首页"}
-              >
+            <Link
+              href={brandHref}
+              className="site-header-brand relative z-[3] flex min-w-0 items-center gap-2 sm:gap-3"
+              title={showEntryHeader ? "返回身份选择" : "返回工作台首页"}
+            >
+              <span className="site-header-logo relative z-[4] shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/sysu-logo-nav.png?v=2"
                   alt="中山大学 SUN YAT-SEN UNIVERSITY"
                   className="site-header-logo-img h-10 w-auto max-w-[min(18rem,46vw)] object-contain object-left"
                 />
-              </Link>
+              </span>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/api/photos/brand" alt="审盾" className="site-header-brand-icon" />
               <div className="min-w-0 border-l border-white/25 pl-2 sm:pl-3">
@@ -101,40 +104,53 @@ export function SiteShell({ children }: { children: ReactNode }) {
                     ? "学生端 · 报销合规申报"
                     : portalRole === "teacher"
                       ? "教师端 · 合规风控复核"
-                      : "大创报销经费合规风控平台"}
+                      : isTeacherLogin
+                        ? "教师端 · 登录"
+                        : isStudentLogin
+                          ? "学生端 · 登录"
+                          : "大创报销经费合规风控平台"}
                 </p>
               </div>
-            </div>
+            </Link>
 
             <nav className="site-header-nav flex items-center gap-0">
-              <div className="hidden items-center gap-0 md:flex">
-                {navItems.map((item) => {
-                  const active = item.match === activeNavMatch;
-                  return (
+              {!showEntryHeader ? (
+                <div className="hidden items-center gap-0 md:flex">
+                  {navItems.map((item) => {
+                    const active = item.match === activeNavMatch;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`site-header-nav-link rounded-sm ${active ? "is-active" : ""}`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                  {switchLink ? (
                     <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`site-header-nav-link rounded-sm ${active ? "is-active" : ""}`}
+                      href={switchLink.href}
+                      className="site-header-nav-link ml-2 rounded-sm border border-white/30"
                     >
-                      {item.label}
+                      {switchLink.label}
                     </Link>
-                  );
-                })}
-                {switchLink ? (
-                  <Link
-                    href={switchLink.href}
-                    className="site-header-nav-link ml-2 rounded-sm border border-white/30"
-                  >
-                    {switchLink.label}
-                  </Link>
-                ) : null}
-              </div>
-              {portalRole === "entry"
-                ? entryPortalHeaderLinks.map((item) => (
-                    <Link key={item.href} href={item.href} className="site-header-nav-link rounded-sm">
-                      {item.label}
-                    </Link>
-                  ))
+                  ) : null}
+                </div>
+              ) : null}
+              {showEntryHeader
+                ? entryPortalHeaderLinks.map((item) => {
+                    const active = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`site-header-nav-link rounded-sm ${active ? "is-active" : ""}`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })
                 : null}
             </nav>
           </div>

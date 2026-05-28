@@ -91,7 +91,7 @@ function rowToReport(row: SubmissionRow): ReportData {
   });
 }
 
-function rowToQueueItem(row: SubmissionRow): QueueItem {
+export function rowToQueueItem(row: SubmissionRow): QueueItem {
   return {
     id: row.id,
     projectName: row.project_name,
@@ -138,7 +138,7 @@ export async function listRecentReports(limit = 2) {
   return (data as SubmissionRow[]).map(rowToReport);
 }
 
-export async function listQueueItems() {
+export async function listAllSubmissionRows(): Promise<SubmissionRow[]> {
   await enforceAdminRetention();
 
   const supabase = getSupabaseAdmin();
@@ -151,7 +151,12 @@ export async function listQueueItems() {
     throw new Error(error.message);
   }
 
-  return (data as SubmissionRow[]).map(rowToQueueItem);
+  return (data ?? []) as SubmissionRow[];
+}
+
+export async function listQueueItems() {
+  const rows = await listAllSubmissionRows();
+  return rows.map(rowToQueueItem);
 }
 
 export async function listAuditLogs(limit = 50) {

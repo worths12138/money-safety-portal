@@ -15,15 +15,21 @@ export const studentNavItems: PortalNavItem[] = [
 ];
 
 export const teacherNavItems: PortalNavItem[] = [
+  { href: "/teacher/dashboard", label: "数据看板", match: "/teacher/dashboard", shortLabel: "板" },
   { href: "/teacher/queue", label: "复核队列", match: "/teacher/queue", shortLabel: "队" },
   { href: "/teacher/rules", label: "规则配置", match: "/teacher/rules", shortLabel: "规" },
 ];
 
 export type PortalRole = "entry" | "student" | "teacher" | "legacy";
 
+export function isPortalLoginPath(pathname: string | null): boolean {
+  return pathname === "/student/login" || pathname === "/teacher/login";
+}
+
+/** 登录页与首页统一为 entry，避免登录页顶栏出现「复核队列」且校徽误进工作台 */
 export function resolvePortalRole(pathname: string | null): PortalRole {
   if (!pathname) return "legacy";
-  if (pathname === "/") return "entry";
+  if (pathname === "/" || isPortalLoginPath(pathname)) return "entry";
   if (pathname.startsWith("/teacher")) return "teacher";
   if (pathname.startsWith("/student")) return "student";
   return "legacy";
