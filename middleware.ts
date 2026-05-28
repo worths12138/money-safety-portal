@@ -1,9 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isLegacyPortalEnabled, isLegacyPortalPath } from "@/lib/legacy-portal";
-import { updateSession } from "@/lib/supabase/middleware";
+import {
+  redirectLegacyAdminForTeacherIfNeeded,
+  redirectLegacyReportIfNeeded,
+  updateSession,
+} from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const reportRedirect = await redirectLegacyReportIfNeeded(request);
+  if (reportRedirect) return reportRedirect;
+
+  const adminRedirect = await redirectLegacyAdminForTeacherIfNeeded(request);
+  if (adminRedirect) return adminRedirect;
 
   if (isLegacyPortalPath(pathname) && !isLegacyPortalEnabled()) {
     return NextResponse.redirect(new URL("/", request.url));

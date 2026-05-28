@@ -24,8 +24,25 @@ export type PortalRole = "entry" | "student" | "teacher" | "legacy";
 
 export type SessionPortalRole = "student" | "teacher" | null;
 
+export function isStudentReportPath(pathname: string | null): boolean {
+  return Boolean(pathname?.startsWith("/student/report/"));
+}
+
+export function isTeacherReportPath(pathname: string | null): boolean {
+  return Boolean(pathname?.startsWith("/teacher/report/"));
+}
+
+/** 任意门户下的风控报告页（含遗留 /report/:id） */
 export function isReportPath(pathname: string | null): boolean {
-  return Boolean(pathname?.startsWith("/report") || pathname?.includes("/report/"));
+  if (!pathname) return false;
+  if (isStudentReportPath(pathname) || isTeacherReportPath(pathname)) return true;
+  return pathname.startsWith("/report/");
+}
+
+export function reportPathForRole(role: SessionPortalRole, id: string): string {
+  if (role === "student") return `/student/report/${id}`;
+  if (role === "teacher") return `/teacher/report/${id}`;
+  return `/report/${id}`;
 }
 
 export function isPortalLoginPath(pathname: string | null): boolean {
@@ -34,7 +51,7 @@ export function isPortalLoginPath(pathname: string | null): boolean {
 
 /** 登录页与首页统一为 entry，避免登录页顶栏出现「复核队列」且校徽误进工作台 */
 export function resolvePortalRole(pathname: string | null): PortalRole {
-  if (!pathname) return "legacy";
+  if (!pathname) return "entry";
   if (pathname === "/" || isPortalLoginPath(pathname)) return "entry";
   if (pathname.startsWith("/teacher")) return "teacher";
   if (pathname.startsWith("/student")) return "student";

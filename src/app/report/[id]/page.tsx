@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { RiskAmountPieChart } from "@/components/RiskAmountPieChart";
 import { exportReportPdf } from "@/lib/export-report-pdf";
@@ -30,7 +30,12 @@ import {
   reportPendingAgentReview,
 } from "@/lib/report-material-status";
 import type { UserRole } from "@/lib/auth/types";
-import { resolvePortalRole } from "@/lib/portal-nav";
+import {
+  isStudentReportPath,
+  isTeacherReportPath,
+  reportPathForRole,
+  resolvePortalRole,
+} from "@/lib/portal-nav";
 
 function loadingReport(id: string): ReportData {
   return {
@@ -53,9 +58,11 @@ function loadingReport(id: string): ReportData {
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const pathname = usePathname();
+  const router = useRouter();
   const [authPortalRole, setAuthPortalRole] = useState<UserRole | null>(null);
-  const pathStudent = pathname?.startsWith("/student") ?? false;
-  const pathTeacher = pathname?.startsWith("/teacher") ?? false;
+  const pathStudent = isStudentReportPath(pathname);
+  const pathTeacher = isTeacherReportPath(pathname);
+  const isLegacyReportUrl = Boolean(pathname?.match(/^\/report\/[^/]+$/));
   const isStudentPortal = pathStudent || authPortalRole === "student";
   const isTeacherPortal = pathTeacher || authPortalRole === "teacher";
   const backHref = isStudentPortal
@@ -93,7 +100,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
   useEffect(() => {
     if (pathStudent || pathTeacher) return;
-    if (!pathname?.startsWith("/report")) return;
+    if (!isLegacyReportUrl) return;
     if (resolvePortalRole(pathname) !== "legacy") return;
     let cancelled = false;
     fetch("/api/auth/me")
@@ -101,7 +108,10 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
       .then((data: { profile?: { role?: UserRole } | null }) => {
         if (cancelled) return;
         const role = data.profile?.role;
-        if (role === "student" || role === "teacher") setAuthPortalRole(role);
+        if (role === "student" || role === "teacher") {
+          setAuthPortalRole(role);
+          router.replace(reportPathForRole(role, id));
+        }
       })
       .catch(() => {
         if (!cancelled) setAuthPortalRole(null);
@@ -109,7 +119,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     return () => {
       cancelled = true;
     };
-  }, [pathStudent, pathTeacher, pathname]);
+  }, [pathStudent, pathTeacher, pathname, isLegacyReportUrl, id, router]);
 
   const handleExportPdf = useCallback(() => {
     setExportedAt(new Date().toLocaleString("zh-CN"));
@@ -276,7 +286,13 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between no-print">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/report/{id}</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">
+              {isTeacherPortal
+                ? `/teacher/report/${id}`
+                : isStudentPortal
+                  ? `/student/report/${id}`
+                  : `/report/${id}`}
+            </p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">大创报销经费合规风控报告</h2>
             <p className="mt-2 text-sm text-slate-500">{message}</p>
             {pendingAgent ? (

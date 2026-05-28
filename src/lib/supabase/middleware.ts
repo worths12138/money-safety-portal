@@ -28,6 +28,85 @@ async function loadRole(userId: string): Promise<UserRole | null> {
   return null;
 }
 
+/** 将遗留 /report/:id 重定向到当前登录角色的门户报告页 */
+export async function redirectLegacyReportIfNeeded(
+  request: NextRequest,
+): Promise<NextResponse | null> {
+  const match = request.nextUrl.pathname.match(/^\/report\/([^/]+)$/);
+  if (!match) return null;
+
+  if (!isAuthEnabled()) return null;
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll() {
+          /* read-only for role probe */
+        },
+      },
+    },
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const role = await loadRole(user.id);
+  if (role !== "student" && role !== "teacher") return null;
+
+  const url = request.nextUrl.clone();
+  url.pathname = role === "teacher" ? `/teacher/report/${match[1]}` : `/student/report/${match[1]}`;
+  return NextResponse.redirect(url);
+}
+
+/** 教师已登录时勿停留在遗留 /admin */
+export async function redirectLegacyAdminForTeacherIfNeeded(
+  request: NextRequest,
+): Promise<NextResponse | null> {
+  const { pathname } = request.nextUrl;
+  if (pathname !== "/admin" && !pathname.startsWith("/admin/")) return null;
+  if (!isAuthEnabled()) return null;
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll() {
+          /* read-only */
+        },
+      },
+    },
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const role = await loadRole(user.id);
+  if (role !== "teacher") return null;
+
+  const url = request.nextUrl.clone();
+  if (pathname === "/admin" || pathname === "/admin/") {
+    url.pathname = "/teacher/queue";
+  } else if (pathname === "/admin/rules") {
+    url.pathname = "/teacher/rules";
+  } else {
+    url.pathname = "/teacher/queue";
+  }
+  return NextResponse.redirect(url);
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 

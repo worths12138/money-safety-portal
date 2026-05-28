@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getHomeDashboardMetrics, getHomeRecentReports, quickEntrySteps } from "@/lib/home-data";
 import { isLegacyPortalEnabled } from "@/lib/legacy-portal";
+import { reportPathForRole } from "@/lib/portal-nav";
 import { quickHighlights } from "@/lib/site-data";
 
 export type HomeDashboardVariant = "legacy" | "teacher";
@@ -19,6 +20,7 @@ export async function HomeDashboard({ variant = "legacy" }: HomeDashboardProps) 
   const primaryHref = isTeacher ? "/teacher/queue" : "/preaudit";
   const primaryLabel = isTeacher ? "复核队列" : "AI 风控预审";
   const breadcrumb = isTeacher ? "/teacher/dashboard" : "/home";
+  const reportRole = isTeacher ? "teacher" : null;
 
   return (
     <div className="space-y-6">
@@ -46,7 +48,7 @@ export async function HomeDashboard({ variant = "legacy" }: HomeDashboardProps) 
                 </Link>
                 {latestReport ? (
                   <Link
-                    href={`/report/${latestReport.id}`}
+                    href={reportPathForRole(reportRole, latestReport.id)}
                     className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
                   >
                     查看最新风控报告
@@ -127,7 +129,7 @@ export async function HomeDashboard({ variant = "legacy" }: HomeDashboardProps) 
               </Link>
               {latestReport ? (
                 <Link
-                  href={`/report/${latestReport.id}`}
+                  href={reportPathForRole(reportRole, latestReport.id)}
                   className="border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
                 >
                   打开最近报告
@@ -176,7 +178,7 @@ export async function HomeDashboard({ variant = "legacy" }: HomeDashboardProps) 
                   <p className="mt-3 text-sm leading-6 text-slate-600">{report.conclusion || report.summary}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Link
-                      href={`/report/${report.id}`}
+                      href={reportPathForRole(reportRole, report.id)}
                       className="border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50"
                     >
                       打开风控报告

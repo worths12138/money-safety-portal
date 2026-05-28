@@ -68,7 +68,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
     if (pathname.startsWith("/student")) return "/api/photos/submit";
     if (pathname.startsWith("/admin/rules")) return "/api/photos/last";
     if (pathname.startsWith("/admin")) return "/api/photos/admin";
-    if (pathname.startsWith("/report")) return "/api/photos/report";
+    if (pathname.startsWith("/report") || pathname.includes("/report/")) {
+      return "/api/photos/report";
+    }
     if (pathname.startsWith("/preaudit") || pathname.startsWith("/submit") || pathname.startsWith("/audit")) {
       return "/api/photos/submit";
     }
