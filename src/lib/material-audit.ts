@@ -8,7 +8,11 @@ import { getFullAuditRulesPrompt } from "@/lib/compliance-rules";
 import { buildRagAuditContext } from "@/lib/rag/audit-context";
 import { extractPdfFromBase64 } from "@/lib/pdf-extract";
 import { extractAmountsFromImages } from "@/lib/voucher-image-amount";
-import { MAX_MULTIMODAL_IMAGES_PER_CALL } from "@/lib/material-limits";
+import {
+  IMAGE_EXTRACT_CONCURRENCY,
+  MAX_MULTIMODAL_IMAGES_PER_CALL,
+} from "@/lib/material-limits";
+import { pickPrimaryMaterialsForMultimodal } from "@/lib/material-prioritize";
 import { SUBMISSION_REPORT_FORMAT } from "@/lib/reimbursement-audit-prompts";
 import { sleep } from "@/lib/zhipu-upstream";
 import { zhipuChatCompletion, type ZhipuMessage } from "@/lib/zhipu";
@@ -165,8 +169,28 @@ export async function runVisionAgentAudit(input: {
     throw new Error("没有可用于识图的凭证（请上传 PDF 或 JPG/PNG/WEBP 图片）。");
   }
 
-  const imageExtractions =
-    images.length > 0 ? await extractAmountsFromImages(images) : [];
+  const maxMultimodal = MAX_MULTIMODAL_IMAGES_PER_CALL;
+  const { primary: imagesForMultimodal, overflow: overflowImages } = pickPrimaryMaterialsForMultimodal(
+    images,
+    maxMultimodal,
+  );
+
+  let imageExtractions: ImageAmountExtraction[] = [];
+  let overflowImageText = "";
+
+  if (overflowImages.length > 0) {
+    imageExtractions = await extractAmountsFromImages(overflowImages, {
+      concurrency: IMAGE_EXTRACT_CONCURRENCY,
+    });
+    overflowImageText = `\n【其余 ${overflowImages.length} 张凭据（已并行识图，未再附图；主审已附发票/支付/清单等优先凭证）】\n${imageExtractions
+      .map((e) => `• ${e.name}\n${e.text}`)
+      .join("\n")}`;
+  }
+
+  const primaryPickNote =
+    images.length > maxMultimodal
+      ? `\n【主审附图说明】共 ${images.length} 张图片，主审已附最关键的 ${imagesForMultimodal.length} 张：${imagesForMultimodal.map((m) => m.name).join("、")}。`
+      : "";
 
   const voucherSummary = summarizeVoucherAmounts({
     pdfDocuments,
@@ -174,19 +198,7 @@ export async function runVisionAgentAudit(input: {
     imageCount: images.length,
   });
   const recon = compareDeclaredAndVoucher(input.amount, voucherSummary);
-  const amountReconHint = buildReconPromptHint(recon);
-
-  const imagesForMultimodal = images.slice(0, MAX_MULTIMODAL_IMAGES_PER_CALL);
-  const overflowExtractions: ImageAmountExtraction[] =
-    images.length > MAX_MULTIMODAL_IMAGES_PER_CALL
-      ? imageExtractions.slice(MAX_MULTIMODAL_IMAGES_PER_CALL)
-      : [];
-  const overflowImageText =
-    overflowExtractions.length > 0
-      ? `\n【其余 ${overflowExtractions.length} 张凭据（已逐张识图，未再附图以防超出模型限制）】\n${overflowExtractions
-          .map((e) => `• ${e.name}\n${e.text}`)
-          .join("\n")}`
-      : "";
+  const amountReconHint = buildReconPromptHint(recon) + primaryPickNote;
 
   const markdown = await zhipuChatCompletion({
     system: VISION_AUDIT_SYSTEM,

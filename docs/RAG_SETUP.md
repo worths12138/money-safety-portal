@@ -26,6 +26,14 @@
 ```env
 ZHIPU_API_KEY=...          # 必填
 ZHIPU_QA_MODEL=glm-4-flash # 可选，学生答疑用文本模型，默认 glm-4-flash
+
+# 凭证与初审（可选）
+MAX_MATERIAL_FILES=10              # 单次最多凭证数，默认 10
+MAX_MULTIMODAL_IMAGES_PER_CALL=3   # 主审附图张数，默认 3（智能挑选）
+IMAGE_EXTRACT_CONCURRENCY=3        # 其余凭据并行 OCR 并发
+AGENT_REVIEW_TIMEOUT_MS=300000     # 初审总超时，默认 5 分钟
+ZHIPU_EXTRACT_MODEL=glm-4-flash    # 可选，仅用于「溢出」凭据金额识图
+MATERIAL_CACHE_TTL_SEC=86400       # 凭证内存暂存，演示建议 24h
 ```
 
 ## 验证

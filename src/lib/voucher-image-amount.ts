@@ -7,8 +7,8 @@ export type VisionImageMaterial = {
   b64: string;
 };
 
-/** 图片金额识别间隔，降低智谱 429 */
-const IMAGE_AMOUNT_GAP_MS = 1200;
+/** 批次间隔，降低智谱 429（并行时仍保留短间隔） */
+const IMAGE_AMOUNT_GAP_MS = 400;
 
 const IMAGE_AMOUNT_SYSTEM = `你是财务单据金额识别助手。根据发票、支付截图、订单等图片，识别该张凭证用于报销的金额。
 优先顺序：价税合计 > 实付/应付合计 > 订单总计 > 单张票据最大合理金额。
@@ -93,6 +93,7 @@ export async function extractAmountFromImage(material: VisionImageMaterial): Pro
     system: IMAGE_AMOUNT_SYSTEM,
     messages: [{ role: "user", content }],
     maxTokens: 320,
+    model: process.env.ZHIPU_EXTRACT_MODEL?.trim() || undefined,
   });
 
   const parsed = parseImageAmountJson(raw);
@@ -104,28 +105,46 @@ export async function extractAmountFromImage(material: VisionImageMaterial): Pro
   };
 }
 
+async function extractOneWithFallback(img: VisionImageMaterial): Promise<ImageAmountExtraction> {
+  try {
+    return await extractAmountFromImage(img);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "识别失败";
+    return {
+      name: img.name,
+      text: `[图片金额识别失败：${msg}]`,
+      amountYuan: null,
+      docType: "其他",
+    };
+  }
+}
+
+/** 有限并发识图（用于超出主审附图数量的凭据） */
 export async function extractAmountsFromImages(
   images: VisionImageMaterial[],
-  options?: { gapMs?: number },
+  options?: { gapMs?: number; concurrency?: number },
 ): Promise<ImageAmountExtraction[]> {
-  const gap = options?.gapMs ?? IMAGE_AMOUNT_GAP_MS;
-  const results: ImageAmountExtraction[] = [];
+  if (images.length === 0) return [];
 
-  for (let i = 0; i < images.length; i++) {
-    const img = images[i];
-    try {
-      results.push(await extractAmountFromImage(img));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "识别失败";
-      results.push({
-        name: img.name,
-        text: `[图片金额识别失败：${msg}]`,
-        amountYuan: null,
-        docType: "其他",
-      });
+  const gap = options?.gapMs ?? IMAGE_AMOUNT_GAP_MS;
+  const concurrency = Math.max(1, options?.concurrency ?? 3);
+  const results: ImageAmountExtraction[] = new Array(images.length);
+
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= images.length) break;
+      results[i] = await extractOneWithFallback(images[i]);
+      if (gap > 0 && i < images.length - 1) {
+        await sleep(gap);
+      }
     }
-    if (i < images.length - 1) await sleep(gap);
   }
+
+  const workers = Array.from({ length: Math.min(concurrency, images.length) }, () => worker());
+  await Promise.all(workers);
 
   return results;
 }

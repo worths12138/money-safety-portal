@@ -4,6 +4,7 @@ import { getTeacherIfAuth } from "@/lib/auth/api-guard";
 import { checkTeacherAgentQuota } from "@/lib/auth/teacher-agent-limit";
 import { runAgentReview, type AgentReviewInput } from "@/lib/agent-review";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
+import { agentReviewTimeoutMs } from "@/lib/material-limits";
 import { getMaterialCacheStatus } from "@/lib/report-material-cache-server";
 import { getReportById } from "@/lib/submissions-db";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
@@ -47,8 +48,8 @@ export async function POST(request: Request) {
         materialFiles: body.materialFiles,
         materials: body.materials,
       }),
-      240_000,
-      "Agent 识图评估超时，请稍后在报告页重试。",
+      agentReviewTimeoutMs(),
+      "Agent 识图评估超时，请稍后在报告页重试；凭证较多时可减少文件数或稍后重试。",
     );
 
     const report = await getReportById(result.reportId);
