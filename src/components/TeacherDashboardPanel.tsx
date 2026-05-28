@@ -1,17 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TeacherWelcomeBar } from "@/components/teacher/TeacherWelcomeBar";
 import type { TeacherDashboardQueueItem } from "@/lib/teacher-dashboard-types";
 import { filterQueueByRiskTier, type TeacherStatCard } from "@/lib/teacher-dashboard-metrics";
 import type { OperationLog, QueueItem } from "@/lib/site-data";
-import type { SessionProfile } from "@/lib/auth/types";
 
 type RiskFilter = "全部" | "低" | "中" | "高";
 
 type DashboardPayload = {
-  profile: SessionProfile | null;
+  profile: { displayName?: string; loginName?: string } | null;
   stats: TeacherStatCard[];
   queue: TeacherDashboardQueueItem[];
   tips: string[];
@@ -53,7 +52,7 @@ function StatIcon({ tone }: { tone: TeacherStatCard["tone"] }) {
   return (
     <span className={className} aria-hidden>
       <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.6">
-        <path d="M12 3v4M12 17v4M5 12H3M21 12h-2M7.05 7.05 5.64 5.64M18.36 18.36l-1.41-1.41M16.95 7.05l1.41-1.41M5.64 18.36l1.41-1.41" strokeLinecap="round" />
+        <path d="M12 3v4M12 17v4M5 12H3M21 12h-2" strokeLinecap="round" />
         <circle cx="12" cy="12" r="3" />
       </svg>
     </span>
@@ -61,9 +60,8 @@ function StatIcon({ tone }: { tone: TeacherStatCard["tone"] }) {
 }
 
 function QueueRowIcon({ category }: { category: string }) {
-  const c = category.toLowerCase();
-  const isCode = /api|云|code|模型|软件/.test(c + category);
-  const isBook = /书|图书|资料/.test(c + category);
+  const isCode = /api|云|code|模型|软件/i.test(category);
+  const isBook = /书|图书|资料/.test(category);
   return (
     <span className="teacher-dash-queue-icon" aria-hidden>
       {isCode ? "</>" : isBook ? "📚" : "📁"}
@@ -78,12 +76,10 @@ function riskTagClass(tier: string) {
 }
 
 export function TeacherDashboardPanel() {
-  const router = useRouter();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("全部");
-  const [clock, setClock] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -112,34 +108,10 @@ export function TeacherDashboardPanel() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    function tick() {
-      setClock(
-        new Date().toLocaleString("zh-CN", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          weekday: "long",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      );
-    }
-    tick();
-    const id = window.setInterval(tick, 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-
   const filteredQueue = useMemo(() => {
     if (!data) return [];
     return filterQueueByRiskTier(data.queue, riskFilter).slice(0, 8);
   }, [data, riskFilter]);
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/teacher/login");
-    router.refresh();
-  }
 
   async function updateStatus(id: string, status: "通过" | "驳回") {
     setReviewingId(id);
@@ -165,11 +137,7 @@ export function TeacherDashboardPanel() {
           ...prev,
           queue: prev.queue.map((item) =>
             item.id === id
-              ? {
-                  ...item,
-                  status: payload.queueItem!.status,
-                  risk: payload.queueItem!.risk,
-                }
+              ? { ...item, status: payload.queueItem!.status, risk: payload.queueItem!.risk }
               : item,
           ),
           logs: payload.log ? [payload.log, ...prev.logs] : prev.logs,
@@ -183,89 +151,64 @@ export function TeacherDashboardPanel() {
     }
   }
 
-  const profile = data?.profile;
-
   return (
-    <div className="teacher-dash space-y-5">
-      <section className="teacher-dash-welcome sysu-card">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <span className="teacher-dash-avatar" aria-hidden>
-              {profile?.displayName?.slice(0, 1) ?? "师"}
-            </span>
-            <div>
-              <p className="text-lg font-semibold text-slate-900">
-                您好，{profile?.displayName ?? "指导老师"}
-                {profile?.loginName ? (
-                  <span className="ml-2 text-sm font-normal text-slate-500">({profile.loginName})</span>
-                ) : null}
-                <span className="teacher-dash-role-badge">教师</span>
-              </p>
-              <p className="mt-1 text-sm text-slate-500">欢迎使用大创报销合规风控平台，今日也要认真复核哦。</p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
-            <p className="text-sm text-slate-500" suppressHydrationWarning>
-              {clock || "—"}
-            </p>
-            <button type="button" onClick={() => void logout()} className="teacher-dash-logout">
-              退出
-            </button>
-          </div>
-        </div>
-      </section>
+    <div className="teacher-page-shell">
+      <TeacherWelcomeBar hint="欢迎使用中山大学合规风控平台，今日也要认真复核哦。" />
 
-      {error ? (
-        <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
-      ) : null}
+      <section className="teacher-glass-panel teacher-dash-panel">
+        <header className="teacher-page-hero">
+          <h1>教师合规风控工作台</h1>
+          <p>数据驱动风险识别，智能辅助合规决策</p>
+        </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={`sk-${i}`} className="teacher-dash-stat sysu-card">
-                <p className="text-sm text-slate-400">加载中…</p>
-              </div>
-            ))
-          : (data?.stats ?? []).map((stat) => (
-              <div key={stat.key} className="teacher-dash-stat sysu-card">
-                <StatIcon tone={stat.tone} />
-                <p className="teacher-dash-stat-label">{stat.label}</p>
-                <p className="teacher-dash-stat-value">{stat.value}</p>
-                <p className="teacher-dash-stat-hint">{stat.hint}</p>
-              </div>
-            ))}
-      </section>
+        {error ? <p className="teacher-alert teacher-alert--error">{error}</p> : null}
 
-      <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
-        <div className="teacher-dash-queue sysu-card">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-            <h2 className="text-lg font-semibold text-slate-900">风险复核队列</h2>
-            <div className="flex flex-wrap gap-2">
-              {(["全部", "低", "中", "高"] as const).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setRiskFilter(f)}
-                  className={`teacher-dash-filter ${riskFilter === f ? "is-active" : ""}`}
-                >
-                  {f === "全部" ? "全部" : `${f}风险`}
-                </button>
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={`sk-${i}`} className="teacher-dash-stat teacher-inner-card">
+                  <p className="text-sm text-slate-400">加载中…</p>
+                </div>
+              ))
+            : (data?.stats ?? []).map((stat) => (
+                <div key={stat.key} className="teacher-dash-stat teacher-inner-card">
+                  <StatIcon tone={stat.tone} />
+                  <p className="teacher-dash-stat-label">{stat.label}</p>
+                  <p className="teacher-dash-stat-value">{stat.value}</p>
+                  <p className="teacher-dash-stat-hint">{stat.hint}</p>
+                </div>
               ))}
-            </div>
-          </div>
+        </section>
 
-          <div className="divide-y divide-slate-100">
-            {loading ? (
-              <p className="px-5 py-10 text-center text-sm text-slate-500">正在加载队列…</p>
-            ) : filteredQueue.length === 0 ? (
-              <p className="px-5 py-10 text-center text-sm text-slate-500">暂无符合条件的申报。</p>
-            ) : (
-              filteredQueue.map((item) => (
-                <article
-                  key={item.id}
-                  className={`teacher-dash-queue-row px-5 py-4 ${item.riskTier === "高" ? "is-high" : ""}`}
-                >
-                  <div className="flex gap-4">
+        <section className="mt-6 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+          <div className="teacher-dash-queue teacher-inner-card p-4 sm:p-5">
+            <div className="teacher-section-head">
+              <h2 className="teacher-section-title">风险复核队列</h2>
+              <div className="flex flex-wrap gap-2">
+                {(["全部", "低", "中", "高"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setRiskFilter(f)}
+                    className={`teacher-filter-btn ${riskFilter === f ? "is-active" : ""}`}
+                  >
+                    {f === "全部" ? "全部" : `${f}风险`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-2">
+              {loading ? (
+                <p className="py-10 text-center text-sm text-slate-500">正在加载队列…</p>
+              ) : filteredQueue.length === 0 ? (
+                <p className="py-10 text-center text-sm text-slate-500">暂无符合条件的申报。</p>
+              ) : (
+                filteredQueue.map((item) => (
+                  <article
+                    key={item.id}
+                    className={`teacher-queue-task ${item.riskTier === "高" ? "is-high" : ""}`}
+                  >
                     <QueueRowIcon category={item.category} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -275,20 +218,20 @@ export function TeacherDashboardPanel() {
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className={riskTagClass(item.riskTier)}>{item.riskTierLabel}</span>
-                          <span className="text-sm font-semibold text-slate-700">{item.risk}分</span>
+                          <span className="teacher-risk-badge">{item.risk}</span>
                         </div>
                       </div>
                       <p className="mt-2 text-xs text-slate-400">提交于 {item.submittedAt}</p>
                       <p className="mt-2 text-sm leading-6 text-slate-600">{item.summary}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Link href={`/report/${item.id}`} className="teacher-dash-btn teacher-dash-btn--ghost">
+                        <Link href={`/report/${item.id}`} className="teacher-ghost-btn">
                           查看报告
                         </Link>
                         <button
                           type="button"
                           disabled={reviewingId === item.id || item.status !== "待审核"}
                           onClick={() => void updateStatus(item.id, "通过")}
-                          className="teacher-dash-btn teacher-dash-btn--pass"
+                          className="teacher-primary-btn"
                         >
                           通过
                         </button>
@@ -296,70 +239,71 @@ export function TeacherDashboardPanel() {
                           type="button"
                           disabled={reviewingId === item.id || item.status !== "待审核"}
                           onClick={() => void updateStatus(item.id, "驳回")}
-                          className="teacher-dash-btn teacher-dash-btn--reject"
+                          className="teacher-outline-btn"
+                          style={{ borderColor: "#fecaca", color: "#b91c1c" }}
                         >
                           驳回
                         </button>
                       </div>
                     </div>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-
-          <div className="border-t border-slate-100 px-5 py-3 text-center">
-            <Link href="/teacher/queue" className="text-sm font-medium text-[var(--accent-green)] hover:underline">
-              查看全部 →
-            </Link>
-          </div>
-        </div>
-
-        <aside className="space-y-5">
-          <div className="teacher-dash-tips sysu-card p-5">
-            <h2 className="text-base font-semibold text-slate-900">风控提示</h2>
-            <ul className="mt-4 space-y-3">
-              {(data?.tips ?? []).map((tip) => (
-                <li key={tip} className="flex gap-2 text-sm leading-6 text-slate-600">
-                  <span className="teacher-dash-tip-dot" aria-hidden>
-                    ✓
-                  </span>
-                  {tip}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="teacher-dash-logs sysu-card p-5">
-            <h2 className="text-base font-semibold text-slate-900">最近审核记录</h2>
-            <ul className="mt-4 space-y-4">
-              {loading ? (
-                <li className="text-sm text-slate-500">加载中…</li>
-              ) : (data?.logs ?? []).length === 0 ? (
-                <li className="text-sm text-slate-500">暂无审核记录。</li>
-              ) : (
-                (data?.logs ?? []).slice(0, 6).map((log) => {
-                  const passed = log.action.includes("通过");
-                  return (
-                    <li key={log.id} className="flex gap-3 text-sm">
-                      <span
-                        className={`teacher-dash-log-dot ${passed ? "is-pass" : "is-reject"}`}
-                        aria-hidden
-                      />
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-800">
-                          {log.action} · {log.actor}
-                        </p>
-                        <p className="mt-0.5 text-slate-600">{log.target}</p>
-                        <p className="mt-1 text-xs text-slate-400">{log.time}</p>
-                      </div>
-                    </li>
-                  );
-                })
+                  </article>
+                ))
               )}
-            </ul>
+            </div>
+
+            <div className="mt-3 border-t border-slate-100 pt-3 text-center">
+              <Link href="/teacher/queue" className="text-sm font-semibold text-[var(--accent-green)] hover:underline">
+                查看全部 →
+              </Link>
+            </div>
           </div>
-        </aside>
+
+          <aside className="space-y-4">
+            <div className="teacher-side-card teacher-inner-card">
+              <h3 className="teacher-section-title">风控提示</h3>
+              <ul className="mt-4 space-y-3">
+                {(data?.tips ?? []).map((tip) => (
+                  <li key={tip} className="flex gap-2 text-sm leading-6 text-slate-600">
+                    <span className="teacher-dash-tip-dot" aria-hidden>
+                      ✓
+                    </span>
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="teacher-side-card teacher-inner-card">
+              <h3 className="teacher-section-title">最近审核记录</h3>
+              <ul className="mt-4 space-y-4">
+                {loading ? (
+                  <li className="text-sm text-slate-500">加载中…</li>
+                ) : (data?.logs ?? []).length === 0 ? (
+                  <li className="text-sm text-slate-500">暂无审核记录。</li>
+                ) : (
+                  (data?.logs ?? []).slice(0, 6).map((log) => {
+                    const passed = log.action.includes("通过");
+                    return (
+                      <li key={log.id} className="flex gap-3 text-sm">
+                        <span
+                          className={`teacher-dash-log-dot ${passed ? "is-pass" : "is-reject"}`}
+                          aria-hidden
+                        />
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-800">
+                            {log.action} · {log.actor}
+                          </p>
+                          <p className="mt-0.5 text-slate-600">{log.target}</p>
+                          <p className="mt-1 text-xs text-slate-400">{log.time}</p>
+                        </div>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </div>
+          </aside>
+        </section>
       </section>
     </div>
   );

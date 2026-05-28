@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TeacherWelcomeBar } from "@/components/teacher/TeacherWelcomeBar";
 
 type RulesForm = {
   allowedCategories: string;
@@ -39,6 +42,8 @@ function configToForm(rules: NonNullable<RulesApiPayload["rules"]>): RulesForm {
 }
 
 export default function RulesPage() {
+  const pathname = usePathname();
+  const isTeacherPortal = pathname?.startsWith("/teacher") ?? false;
   const [form, setForm] = useState<RulesForm>(emptyForm);
   const [message, setMessage] = useState("正在加载规则…");
   const [saving, setSaving] = useState(false);
@@ -139,6 +144,137 @@ export default function RulesPage() {
     }
   }
 
+  const formBlock = (
+    <div className={isTeacherPortal ? "teacher-rules-form mt-6 grid gap-0" : "mt-6 grid gap-4"}>
+      <RuleInput
+        label="允许支出类别"
+        value={form.allowedCategories}
+        onChange={(value) => setForm((current) => ({ ...current, allowedCategories: value }))}
+        placeholder="软件订阅 / 设备采购 / 差旅交通"
+        disabled={loading}
+        teacher={isTeacherPortal}
+      />
+      <RuleInput
+        label="金额上限"
+        value={form.amountLimit}
+        onChange={(value) => setForm((current) => ({ ...current, amountLimit: value }))}
+        placeholder="¥5000"
+        disabled={loading}
+        teacher={isTeacherPortal}
+      />
+      <RuleInput
+        label="DDL"
+        value={form.deadline}
+        onChange={(value) => setForm((current) => ({ ...current, deadline: value }))}
+        placeholder="2026-06-10 18:00"
+        disabled={loading}
+        teacher={isTeacherPortal}
+      />
+      <RuleInput
+        label="特殊凭证要求"
+        value={form.specialMaterials}
+        onChange={(value) => setForm((current) => ({ ...current, specialMaterials: value }))}
+        placeholder="比价单 / 签章清单 / 会议纪要"
+        disabled={loading}
+        teacher={isTeacherPortal}
+      />
+    </div>
+  );
+
+  const actionsBlock = (
+    <div className="mt-6 flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving || loading}
+        className={isTeacherPortal ? "teacher-primary-btn" : "border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"}
+      >
+        {saving ? "保存中..." : "保存规则"}
+      </button>
+      <button
+        type="button"
+        onClick={() => void loadRules()}
+        disabled={loading || saving}
+        className={isTeacherPortal ? "teacher-outline-btn" : "border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"}
+      >
+        重新加载
+      </button>
+      <p className={`min-h-6 text-sm ${isTeacherPortal ? "text-slate-500" : "text-slate-500"}`}>{message}</p>
+    </div>
+  );
+
+  const previewBlock = (
+    <>
+      <p className="mt-2 text-xs text-slate-400">
+        {storage === "database" && updatedAt
+          ? `已持久化 · 最后更新 ${new Date(updatedAt).toLocaleString("zh-CN")}`
+          : storage === "memory"
+            ? "仅内存模式（未配置 Supabase）"
+            : "—"}
+      </p>
+      <div className="mt-4 space-y-1">
+        {previewItems.map((item, index) =>
+          isTeacherPortal ? (
+            <div key={item.title} className="teacher-preview-block">
+              <span className="teacher-preview-icon">{index + 1}</span>
+              <div>
+                <span>{item.title}</span>
+                <strong>{item.value}</strong>
+                <span>{item.detail}</span>
+              </div>
+            </div>
+          ) : (
+            <div key={item.title} className="rounded-md border border-slate-200 bg-white px-4 py-3">
+              <p className="text-sm font-medium text-slate-500">{item.title}</p>
+              <p className="mt-1 font-semibold text-slate-950">{item.value}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{item.detail}</p>
+            </div>
+          ),
+        )}
+      </div>
+    </>
+  );
+
+  if (isTeacherPortal) {
+    return (
+      <div className="teacher-page-shell">
+        <TeacherWelcomeBar />
+        <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+          <section className="teacher-glass-panel teacher-dash-panel">
+            <div className="teacher-page-heading">
+              <p className="teacher-kicker">/ ADMIN / RULES</p>
+              <h2>合规规则配置</h2>
+              <p>
+                维护学院合规策略：支出白名单、单笔限额、截止日与特殊凭证要求。保存后写入数据库，并自动注入 Agent
+                申报风控与材料审核。
+              </p>
+            </div>
+            {formBlock}
+            {actionsBlock}
+          </section>
+          <aside className="space-y-4">
+            <div className="teacher-glass-panel teacher-side-card">
+              <h3 className="teacher-section-title">当前规则预览</h3>
+              {previewBlock}
+            </div>
+            <div className="teacher-glass-panel teacher-side-card">
+              <h3 className="teacher-section-title">生效范围</h3>
+              <ul className="teacher-scope-list">
+                <li>AI 风控预审（/preaudit）提交时的多模态 Agent 风控</li>
+                <li>大创固定报销细则与本页配置合并后传给模型</li>
+              </ul>
+              <p className="mt-4 text-sm">
+                <Link href="/teacher/queue" className="font-semibold text-[var(--accent-green)] hover:underline">
+                  前往复核队列 →
+                </Link>
+              </p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
       <section className="sysu-card p-6">
@@ -148,80 +284,14 @@ export default function RulesPage() {
           维护学院合规策略：支出白名单、单笔限额、截止日与特殊凭证要求。保存后写入数据库（已配置 Supabase 时），并自动注入
           GLM-5V-Turbo 的申报风控与「AI 材料审核」。
         </p>
-
-        <div className="mt-6 grid gap-4">
-          <RuleInput
-            label="允许支出类别"
-            value={form.allowedCategories}
-            onChange={(value) => setForm((current) => ({ ...current, allowedCategories: value }))}
-            placeholder="实验耗材 / 设备采购 / 差旅交通"
-            disabled={loading}
-          />
-          <RuleInput
-            label="金额上限"
-            value={form.amountLimit}
-            onChange={(value) => setForm((current) => ({ ...current, amountLimit: value }))}
-            placeholder="单笔 ¥10,000"
-            disabled={loading}
-          />
-          <RuleInput
-            label="DDL"
-            value={form.deadline}
-            onChange={(value) => setForm((current) => ({ ...current, deadline: value }))}
-            placeholder="2026-06-10 18:00"
-            disabled={loading}
-          />
-          <RuleInput
-            label="特殊凭证要求"
-            value={form.specialMaterials}
-            onChange={(value) => setForm((current) => ({ ...current, specialMaterials: value }))}
-            placeholder="比价单 / 签章清单 / 会议纪要"
-            disabled={loading}
-          />
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || loading}
-            className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? "保存中..." : "保存规则"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void loadRules()}
-            disabled={loading || saving}
-            className="border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            重新加载
-          </button>
-          <p className="min-h-6 text-sm text-slate-500">{message}</p>
-        </div>
+        {formBlock}
+        {actionsBlock}
       </section>
-
       <aside className="space-y-6">
         <div className="sysu-card p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">当前规则预览</p>
-          <p className="mt-2 text-xs text-slate-400">
-            {storage === "database" && updatedAt
-              ? `已持久化 · 最近更新 ${new Date(updatedAt).toLocaleString("zh-CN")}`
-              : storage === "memory"
-                ? "仅内存模式（未配置 Supabase）"
-                : "—"}
-          </p>
-          <div className="mt-4 space-y-3">
-            {previewItems.map((item) => (
-              <div key={item.title} className="rounded-md border border-slate-200 bg-white px-4 py-3">
-                <p className="text-sm font-medium text-slate-500">{item.title}</p>
-                <p className="mt-1 font-semibold text-slate-950">{item.value}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{item.detail}</p>
-              </div>
-            ))}
-          </div>
+          {previewBlock}
         </div>
-
         <div className="sysu-card p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">生效范围</p>
           <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-7 text-slate-600">
@@ -240,13 +310,23 @@ function RuleInput({
   onChange,
   placeholder,
   disabled,
+  teacher,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   disabled?: boolean;
+  teacher?: boolean;
 }) {
+  if (teacher) {
+    return (
+      <label>
+        <span>{label}</span>
+        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} disabled={disabled} />
+      </label>
+    );
+  }
   return (
     <label className="space-y-2">
       <span className="text-sm font-medium text-slate-700">{label}</span>

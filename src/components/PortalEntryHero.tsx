@@ -29,14 +29,14 @@ const FEATURES = [
 
 export function PortalEntryHero() {
   return (
-    <div className="portal-entry mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
-      <section className="portal-entry-hero sysu-card overflow-hidden border-white/60 bg-white/92 p-6 shadow-lg backdrop-blur-md sm:p-10">
-        <div className="flex flex-col items-center text-center">
+    <div className="portal-entry portal-entry--home mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 sm:py-8">
+      <section className="portal-entry-hero overflow-hidden p-6 sm:p-10">
+        <div className="text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/api/photos/brand"
             alt="审盾"
-            className="h-14 w-14 rounded-2xl object-cover shadow-sm sm:h-16 sm:w-16"
+            className="mx-auto h-14 w-14 rounded-2xl object-cover shadow-sm sm:h-16 sm:w-16"
           />
           <p className="mt-4 text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
             SYSU · 金融合规 · 风控
@@ -44,28 +44,32 @@ export function PortalEntryHero() {
           <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
             审盾 · 大创报销经费合规风控平台
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
             基于多模态凭证解析、规则引擎与 AI Agent 的智能风控辅助平台
           </p>
         </div>
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-2">
+        <div className="mt-10 grid gap-5 lg:grid-cols-2">
           <Link href="/student/login" className="portal-entry-role portal-entry-role--student group">
             <span className="portal-entry-role-icon" aria-hidden>
               <GraduationIcon />
             </span>
-            <span className="portal-entry-role-title">我是学生</span>
-            <span className="portal-entry-role-desc">提交材料 | 合规答疑 | 查看整改建议</span>
-            <span className="portal-entry-role-cta">进入学生端 →</span>
+            <span className="portal-entry-role-copy">
+              <span className="portal-entry-role-title">我是学生</span>
+              <span className="portal-entry-role-desc">提交材料 | 合规答疑 | 查看整改建议</span>
+              <span className="portal-entry-role-cta">进入学生端 →</span>
+            </span>
           </Link>
 
           <Link href="/teacher/login" className="portal-entry-role portal-entry-role--teacher group">
             <span className="portal-entry-role-icon portal-entry-role-icon--teacher" aria-hidden>
               <TeacherIcon />
             </span>
-            <span className="portal-entry-role-title text-slate-900">我是指导老师</span>
-            <span className="portal-entry-role-desc text-slate-600">AI 预审 | 风险报告 | 复核处理</span>
-            <span className="portal-entry-role-cta portal-entry-role-cta--teacher">进入教师端 →</span>
+            <span className="portal-entry-role-copy">
+              <span className="portal-entry-role-title text-slate-900">我是指导老师</span>
+              <span className="portal-entry-role-desc text-slate-600">AI 预审 | 风险报告 | 复核处理</span>
+              <span className="portal-entry-role-cta portal-entry-role-cta--teacher">进入教师端 →</span>
+            </span>
           </Link>
         </div>
 
@@ -86,19 +90,22 @@ export function PortalEntryHero() {
         </ol>
       </section>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
         {FEATURES.map((f) => (
-          <article key={f.title} className="sysu-card bg-white/90 p-5 backdrop-blur-sm">
-            <span className="portal-entry-feature-icon" aria-hidden>
+          <article key={f.title} className="portal-feature-card">
+            <span className="portal-feature-icon" aria-hidden>
               <f.icon />
             </span>
-            <h2 className="text-sm font-semibold text-slate-900">{f.title}</h2>
-            <p className="mt-2 text-xs leading-6 text-slate-600 sm:text-sm">{f.desc}</p>
+            <div className="portal-feature-copy">
+              <h2>{f.title}</h2>
+              <span className="portal-feature-rule" aria-hidden />
+              <p>{f.desc}</p>
+            </div>
           </article>
         ))}
       </div>
 
-      <p className="mt-6 text-center text-xs text-slate-500">
+      <p className="portal-entry-dev-link mt-6 text-center text-xs text-slate-500">
         <Link href="/home" className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700">
           进入原完整导航（演示/开发）
         </Link>
@@ -187,9 +194,6 @@ function OcrFeatureIcon() {
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.5">
       <rect x="5" y="3" width="14" height="18" rx="2" />
       <path d="M9 8h6M9 12h6M9 16h4" strokeLinecap="round" />
-      <text x="17" y="9" fontSize="5" fill="currentColor" stroke="none">
-        OCR
-      </text>
     </svg>
   );
 }

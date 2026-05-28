@@ -15,9 +15,11 @@ export function AuthHeaderBar() {
     pathname?.startsWith("/student") || pathname?.startsWith("/teacher");
   const isLoginPage = pathname === "/student/login" || pathname === "/teacher/login";
   const hideOnTeacherDashboard = pathname === "/teacher/dashboard";
+  const hideOnStudentPortal = pathname?.startsWith("/student") && !isLoginPage;
+  const hideOnTeacherPortal = pathname?.startsWith("/teacher") && !isLoginPage;
 
   useEffect(() => {
-    if (!isPortal || isLoginPage || hideOnTeacherDashboard) return;
+    if (!isPortal || isLoginPage || hideOnTeacherDashboard || hideOnStudentPortal || hideOnTeacherPortal) return;
 
     fetch("/api/auth/me")
       .then((r) => r.json())
@@ -29,9 +31,9 @@ export function AuthHeaderBar() {
         setAuthEnabled(false);
         setProfile(null);
       });
-  }, [isPortal, isLoginPage, hideOnTeacherDashboard, pathname]);
+  }, [isPortal, isLoginPage, hideOnTeacherDashboard, hideOnStudentPortal, hideOnTeacherPortal, pathname]);
 
-  if (!isPortal || isLoginPage || hideOnTeacherDashboard || !authEnabled) {
+  if (!isPortal || isLoginPage || hideOnTeacherDashboard || hideOnStudentPortal || hideOnTeacherPortal || !authEnabled) {
     return null;
   }
 

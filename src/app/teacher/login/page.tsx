@@ -10,8 +10,9 @@ function TeacherLoginInner() {
     <PortalLoginForm
       role="teacher"
       title="教师登录"
-      subtitle="演示账号 teacher1；负责 AI 初审与通过/驳回。每日 AI 初审次数受配额限制。"
-      defaultNext="/teacher/queue"
+      subtitle="演示账号 teacher1；负责 AI 初审与通过/驳回，每日 AI 初审次数受配额限制。"
+      defaultLoginName="teacher1"
+      defaultNext="/teacher/dashboard"
       otherPortal={{ href: "/student/login", label: "前往学生端登录" }}
     />
   );

@@ -1,177 +1,151 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export const metadata = {
-  title: "学生首页 | 大创报销合规风控",
-  description: "学生报销工作台：提交申报、合规答疑、进度查询。",
+  title: "学生端 | 大创报销合规风控",
+  description: "学生提交报销申报、查询复核进度。",
 };
-
-const CHECKLIST = ["发票清晰", "付款记录完整", "金额一致", "用途相关", "特殊材料齐全"] as const;
-
-const FLOW = [
-  { label: "填写申报", icon: "form" },
-  { label: "上传凭证", icon: "upload" },
-  { label: "AI问答", icon: "qa" },
-  { label: "提交导师", icon: "submit" },
-  { label: "查看反馈", icon: "feedback" },
-] as const;
 
 export default function StudentHomePage() {
   return (
-    <div className="student-page mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-6">
-      <div className="student-page-card sysu-card">
-        <div className="student-workbench-hero">
-          <div className="student-workbench-hero-icon" aria-hidden>
-            <WorkbenchShieldIcon />
-          </div>
-          <h1 className="student-workbench-title">学生端报销工作台</h1>
-          <p className="student-workbench-subtitle">上传材料、完成申报、智能答疑，让报销更规范。</p>
+    <div className="student-page-shell student-home-shell">
+      <section className="student-glass-panel student-home-panel">
+        <div className="student-home-hero">
+          <BrandShieldIcon />
+          <h1>学生端报销工作台</h1>
+          <p>上传材料、完成申报、智能答疑，让报销更规范。</p>
         </div>
 
-        <div className="student-action-grid">
-          <article className="student-action-card">
-            <span className="student-action-card-icon" aria-hidden>
-              <SubmitIcon />
-            </span>
-            <h2>提交申报</h2>
-            <p>上传发票 / 付款截图 / PDF 材料</p>
-            <Link href="/student/preaudit" className="student-btn-primary">
-              开始提交
-            </Link>
-          </article>
-          <article className="student-action-card">
-            <span className="student-action-card-icon" aria-hidden>
-              <QaIcon />
-            </span>
-            <h2>AI 问答</h2>
-            <p>报销规则检索与智能合规答疑</p>
-            <Link href="/student/qa" className="student-btn-primary">
-              开始问答
-            </Link>
-          </article>
-          <article className="student-action-card">
-            <span className="student-action-card-icon" aria-hidden>
-              <ProgressIcon />
-            </span>
-            <h2>查询进度</h2>
-            <p>查看 AI 初审、教师复核与整改状态</p>
-            <Link href="/student/status" className="student-btn-primary">
-              查看进度
-            </Link>
-          </article>
+        <div className="student-home-actions">
+          <StudentActionCard
+            href="/student/preaudit"
+            title="提交申报"
+            desc="上传发票 / 付款截图 / PDF材料"
+            cta="开始提交"
+            icon={<SubmitDocIcon />}
+          />
+          <StudentActionCard
+            href="/student/qa"
+            title="AI问答"
+            desc="报销规则检索与智能合规答疑"
+            cta="开始问答"
+            icon={<ChatIcon />}
+          />
+          <StudentActionCard
+            href="/student/status"
+            title="查询进度"
+            desc="查看AI初审、教师复核与整改状态"
+            cta="查看进度"
+            icon={<SearchStatusIcon />}
+          />
         </div>
 
-        <div className="student-bottom-grid">
-          <section className="student-panel">
-            <h2 className="student-panel-title">报销流程</h2>
-            <ol className="student-flow-steps">
-              {FLOW.map((step) => (
-                <li key={step.label} className="student-flow-step">
-                  <span className="student-flow-step-icon">
-                    <FlowStepIcon kind={step.icon} />
-                  </span>
-                  {step.label}
+        <div className="student-home-lower">
+          <section className="student-home-card student-flow-card">
+            <h2><span />报销流程</h2>
+            <ol>
+              {[
+                ["填写申报", <WriteIcon key="write" />],
+                ["上传凭证", <CloudUploadIcon key="upload" />],
+                ["AI问答", <BubbleIcon key="bubble" />],
+                ["提交导师", <UserSolidIcon key="user" />],
+                ["查看反馈", <MessageIcon key="message" />],
+              ].map(([label, icon], index) => (
+                <li key={String(label)}>
+                  <span className="student-flow-icon">{icon}</span>
+                  <span className="student-flow-num">{index + 1}</span>
+                  <strong>{label}</strong>
                 </li>
               ))}
             </ol>
-            <p className="student-flow-banner">
-              <span aria-hidden>💡</span>
-              AI 初审 + 教师复核双重把关，确保合规高效
+            <p className="student-flow-note">
+              <LightIcon /> AI 初审 + 教师复核双重把关，确保合规高效
             </p>
           </section>
-          <section className="student-panel">
-            <h2 className="student-panel-title">提交前检查</h2>
-            <ul className="student-checklist">
-              {CHECKLIST.map((item) => (
-                <li key={item}>
-                  <span className="student-check-dot" aria-hidden>
-                    ✓
-                  </span>
-                  {item}
-                </li>
+
+          <section className="student-home-card student-check-card">
+            <h2><span />提交前检查</h2>
+            <ul>
+              {["发票清晰", "付款记录完整", "金额一致", "用途相关", "特殊材料齐全"].map((item) => (
+                <li key={item}><CheckCircleIcon />{item}</li>
               ))}
             </ul>
+            <div className="student-check-ghost" aria-hidden>
+              <ClipboardShieldIcon />
+            </div>
           </section>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-function WorkbenchShieldIcon() {
+function StudentActionCard({
+  href,
+  title,
+  desc,
+  cta,
+  icon,
+}: {
+  href: string;
+  title: string;
+  desc: string;
+  cta: string;
+  icon: ReactNode;
+}) {
   return (
-    <svg viewBox="0 0 32 32" fill="none" className="h-8 w-8" stroke="currentColor" strokeWidth="1.5">
-      <path d="M16 3 6 7.5v8c0 6.5 4.5 11 10 12.5 5.5-1.5 10-6 10-12.5v-8L16 3Z" strokeLinejoin="round" />
-      <circle cx="16" cy="14" r="3" />
-      <path d="M13.5 17.5 16 20l4-4.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <article className="student-action-card">
+      <span className="student-action-icon">{icon}</span>
+      <div>
+        <h2>{title}</h2>
+        <p>{desc}</p>
+        <Link href={href} className="student-primary-btn">
+          {cta}
+        </Link>
+      </div>
+    </article>
   );
 }
 
-function SubmitIcon() {
+function BrandShieldIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.5">
-      <path d="M8 4h11v11M7 17 19 5" strokeLinecap="round" strokeLinejoin="round" />
-      <rect x="4" y="8" width="10" height="12" rx="1" />
-    </svg>
+    <span className="student-brand-shield">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/api/photos/brand" alt="审盾" />
+    </span>
   );
 }
 
-function QaIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.5">
-      <rect x="5" y="7" width="14" height="11" rx="2" />
-      <path d="M9 11h6M9 14h4" strokeLinecap="round" />
-      <path d="M12 4v2" strokeLinecap="round" />
-    </svg>
-  );
+function SubmitDocIcon() {
+  return <svg viewBox="0 0 32 32"><path d="M9 5h12l4 4v18H9V5Z" /><path d="M21 5v5h5M13 14h9M13 18h7" /><circle cx="23" cy="23" r="4" /><path d="M23 25v-5m0 0-2 2m2-2 2 2" /></svg>;
 }
-
-function ProgressIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.5">
-      <circle cx="11" cy="11" r="6" />
-      <path d="M16 16 20 20" strokeLinecap="round" />
-      <path d="M8 11h6M11 8v6" strokeLinecap="round" />
-    </svg>
-  );
+function ChatIcon() {
+  return <svg viewBox="0 0 32 32"><path d="M8 9c0-3 3-5 8-5s8 2 8 5v4c0 3-3 5-8 5h-2l-5 4v-5c-1.4-.9-2-2.2-2-4V9Z" /><circle cx="13" cy="11" r="1" /><circle cx="17" cy="11" r="1" /><circle cx="21" cy="11" r="1" /><circle cx="23" cy="21" r="5" /><path d="M21 21h4" /></svg>;
 }
-
-function FlowStepIcon({ kind }: { kind: (typeof FLOW)[number]["icon"] }) {
-  const cls = "h-4 w-4";
-  switch (kind) {
-    case "form":
-      return (
-        <svg viewBox="0 0 20 20" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
-          <path d="M6 4h10v12H6V4Z" />
-          <path d="M8 8h6M8 11h4" strokeLinecap="round" />
-        </svg>
-      );
-    case "upload":
-      return (
-        <svg viewBox="0 0 20 20" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
-          <path d="M10 13V5m0 0-3 3m3-3 3 3" strokeLinecap="round" />
-          <path d="M4 15h12" strokeLinecap="round" />
-        </svg>
-      );
-    case "qa":
-      return (
-        <svg viewBox="0 0 20 20" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
-          <path d="M4 6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H9l-3 3v-3H6a2 2 0 0 1-2-2V6Z" />
-        </svg>
-      );
-    case "submit":
-      return (
-        <svg viewBox="0 0 20 20" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
-          <circle cx="10" cy="7" r="2.5" />
-          <path d="M5 17c0-2.8 2.2-5 5-5s5 2.2 5 5" strokeLinecap="round" />
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 20 20" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
-          <path d="M4 6h12v8H4V6Z" />
-          <path d="M7 10h6" strokeLinecap="round" />
-        </svg>
-      );
-  }
+function SearchStatusIcon() {
+  return <svg viewBox="0 0 32 32"><circle cx="14" cy="14" r="8" /><path d="m20 20 6 6M10 15l3 3 5-7" /></svg>;
+}
+function WriteIcon() {
+  return <svg viewBox="0 0 32 32"><path d="M8 5h13l4 4v18H8V5Z" /><path d="M21 5v5h5M12 15h7M12 20h5M20 22l6-6 2 2-6 6-3 1 1-3Z" /></svg>;
+}
+function CloudUploadIcon() {
+  return <svg viewBox="0 0 32 32"><path d="M11 24H9a6 6 0 0 1 0-12 8 8 0 0 1 15.5 2.5A5 5 0 0 1 23 24h-2" /><path d="M16 25V15m0 0-4 4m4-4 4 4" /></svg>;
+}
+function BubbleIcon() {
+  return <svg viewBox="0 0 32 32"><path d="M7 10c0-3 3.5-5.5 9-5.5s9 2.5 9 5.5v3c0 3-3.5 5.5-9 5.5h-2l-5 4v-5c-1.4-1-2-2.4-2-4.5v-3Z" /><circle cx="12" cy="12" r="1" /><circle cx="16" cy="12" r="1" /><circle cx="20" cy="12" r="1" /></svg>;
+}
+function UserSolidIcon() {
+  return <svg viewBox="0 0 32 32"><circle cx="16" cy="11" r="5" /><path d="M7 27c1-5.5 4.2-8 9-8s8 2.5 9 8H7Z" /></svg>;
+}
+function MessageIcon() {
+  return <svg viewBox="0 0 32 32"><path d="M6 8h20v13H12l-6 5V8Z" /><path d="M11 13h10M11 17h7" /></svg>;
+}
+function LightIcon() {
+  return <svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M8 14a6 6 0 1 1 8 0c-.8.8-1 1.5-1 2H9c0-.5-.2-1.2-1-2Z" /></svg>;
+}
+function CheckCircleIcon() {
+  return <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="m8 12 2.6 2.6L16 9" /></svg>;
+}
+function ClipboardShieldIcon() {
+  return <svg viewBox="0 0 160 120"><rect x="42" y="18" width="62" height="86" rx="8" /><rect x="58" y="10" width="30" height="14" rx="4" /><path d="M57 45h34M57 62h28M57 79h22" /><path d="M116 45 144 57v18c0 17-12 27-28 34-16-7-28-17-28-34V57l28-12Z" /><path d="m105 76 8 8 17-19" /></svg>;
 }

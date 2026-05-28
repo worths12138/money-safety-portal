@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function TeacherIndexPage() {
-  redirect("/teacher/queue");
+  redirect("/teacher/dashboard");
 }

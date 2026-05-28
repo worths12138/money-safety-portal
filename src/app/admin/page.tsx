@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TeacherWelcomeBar } from "@/components/teacher/TeacherWelcomeBar";
 import {
   adminAuditLogFieldDefinitions,
   adminEntityDefinitions,
@@ -12,6 +13,12 @@ import {
 import type { OperationLog, QueueItem } from "@/lib/site-data";
 
 type QueueStatus = "待审核" | "通过" | "驳回";
+
+function riskScoreClass(score: number) {
+  if (score >= 70) return "teacher-risk-badge is-high";
+  if (score >= 40) return "teacher-risk-badge is-mid";
+  return "teacher-risk-badge is-low";
+}
 
 export default function AdminPage() {
   const pathname = usePathname();
@@ -250,17 +257,233 @@ export default function AdminPage() {
     }
   }
 
+  if (isTeacherPortal) {
+    return (
+      <div className="teacher-page-shell">
+        <TeacherWelcomeBar />
+
+        <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+          <section className="teacher-glass-panel teacher-dash-panel">
+            <div className="teacher-page-heading flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="teacher-kicker">/ TEACHER / QUEUE</p>
+                <h2>教师合规风控复核台</h2>
+                <p>学生端提交后在此发起 AI 风控初审，再按风险分级通过或驳回。</p>
+              </div>
+              <Link href={rulesHref} className="teacher-outline-btn shrink-0">
+                打开规则配置
+              </Link>
+            </div>
+
+            {error ? <p className="teacher-alert teacher-alert--error">{error}</p> : null}
+
+            <div className="teacher-filter-row">
+              {(["全部", "低", "中", "高"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setRiskFilter(item)}
+                  className={`teacher-filter-btn ${riskFilter === item ? "is-active" : ""}`}
+                >
+                  {item}风险
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={purging || loading}
+                onClick={() => void purgeAll()}
+                className="teacher-filter-btn teacher-filter-btn--danger"
+              >
+                {purging ? "清空中…" : "一键清空"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true);
+                  void loadData();
+                }}
+                className="teacher-filter-btn"
+              >
+                刷新
+              </button>
+            </div>
+
+            <div className="teacher-inner-card mt-5 p-4 sm:p-5">
+              {loading ? (
+                <p className="py-10 text-center text-sm text-slate-500">正在加载队列…</p>
+              ) : filteredQueue.length === 0 ? (
+                <p className="py-10 text-center text-sm text-slate-500">暂无申报记录。</p>
+              ) : (
+                filteredQueue.map((item) => (
+                  <article
+                    key={item.id}
+                    className={`teacher-queue-task ${item.risk >= 70 ? "is-high" : ""}`}
+                  >
+                    <span className="teacher-queue-folder" aria-hidden>
+                      📁
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-base font-bold text-slate-900">{item.projectName}</h3>
+                          <p className="mt-0.5 text-sm text-slate-500">{item.owner}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={riskScoreClass(item.risk)}>{item.risk}</span>
+                          <span className="text-sm font-semibold text-slate-600">{item.status}</span>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">{item.submittedAt}</p>
+                      <Link
+                        href={`/report/${item.id}`}
+                        className="mt-2 inline-block text-sm font-semibold text-[var(--accent-green)] hover:underline"
+                      >
+                        查看风险评估书 →
+                      </Link>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            agentRunningId === item.id ||
+                            reviewingId === item.id ||
+                            deletingSubmissionId === item.id
+                          }
+                          onClick={() => void runAgentReview(item.id, item.projectName)}
+                          className="teacher-ghost-btn"
+                        >
+                          {agentRunningId === item.id ? "AI 初审中…" : "AI 初审"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reviewingId === item.id || deletingSubmissionId === item.id || item.status !== "待审核"}
+                          onClick={() => updateStatus(item.id, "通过")}
+                          className="teacher-primary-btn"
+                        >
+                          通过
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reviewingId === item.id || deletingSubmissionId === item.id || item.status !== "待审核"}
+                          onClick={() => updateStatus(item.id, "驳回")}
+                          className="teacher-outline-btn"
+                          style={{ borderColor: "#fecaca", color: "#b91c1c" }}
+                        >
+                          驳回
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reviewingId === item.id || deletingSubmissionId === item.id}
+                          onClick={() => void deleteSubmission(item.id, item.projectName)}
+                          className="teacher-filter-btn teacher-filter-btn--danger"
+                        >
+                          {deletingSubmissionId === item.id ? "删除中…" : "删除"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+
+          <aside className="space-y-4">
+            <div className="teacher-glass-panel teacher-side-card">
+              <h3 className="teacher-section-title">字段定义</h3>
+              <details className="teacher-details mt-4">
+                <summary>查看申报队列字段说明</summary>
+                <dl className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                  {adminQueueFieldDefinitions.map((item) => (
+                    <div key={item.key}>
+                      <dt className="text-sm font-semibold text-slate-800">{item.label}</dt>
+                      <dd className="mt-1 text-sm leading-6 text-slate-500">{item.definition}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+              <details className="teacher-details mt-3">
+                <summary>查看风险分级说明</summary>
+                <dl className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                  {adminRiskFilterDefinitions.map((item) => (
+                    <div key={item.key}>
+                      <dt className="text-sm font-semibold text-slate-800">{item.label} 风险</dt>
+                      <dd className="mt-1 text-sm leading-6 text-slate-500">{item.definition}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+              <details className="teacher-details mt-3">
+                <summary>查看审核记录字段说明</summary>
+                <dl className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                  {adminAuditLogFieldDefinitions.map((item) => (
+                    <div key={item.key}>
+                      <dt className="text-sm font-semibold text-slate-800">{item.label}</dt>
+                      <dd className="mt-1 text-sm leading-6 text-slate-500">{item.definition}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">数据实体</p>
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-500">
+                  {adminEntityDefinitions.map((item) => (
+                    <li key={item.name}>
+                      <strong className="text-slate-700">{item.name}</strong> — {item.description}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="teacher-glass-panel teacher-side-card">
+              <h3 className="teacher-section-title">审核记录</h3>
+              <div className="mt-4 space-y-3">
+                {loading ? (
+                  <p className="text-sm text-slate-500">加载中…</p>
+                ) : logs.length === 0 ? (
+                  <p className="text-sm text-slate-500">暂无审核记录。</p>
+                ) : (
+                  logs.slice(0, 5).map((item) => {
+                    const passed = item.action.includes("通过");
+                    return (
+                      <div key={item.id} className="flex gap-3 text-sm">
+                        <span
+                          className={`teacher-dash-log-dot ${passed ? "is-pass" : "is-reject"}`}
+                          aria-hidden
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-800">
+                            {item.action} · {item.actor}
+                          </p>
+                          <p className="mt-0.5 text-slate-600">{item.target}</p>
+                          <p className="mt-1 text-xs text-slate-400">{item.time}</p>
+                          <button
+                            type="button"
+                            disabled={deletingLogId === item.id}
+                            onClick={() => void deleteAuditLog(item.id)}
+                            className="mt-2 text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                          >
+                            {deletingLogId === item.id ? "删除中…" : "删除此记录"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
       <section className="sysu-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">
-              {isTeacherPortal ? "/teacher" : "/admin"}
-            </p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-              {isTeacherPortal ? "教师合规风控复核台" : "合规风控运营台"}
-            </h2>
+            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-700">/admin</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">合规风控运营台</h2>
             <p className="mt-2 text-sm text-slate-500">
               学生端提交后在此发起 AI 风控初审，再按风险分级通过或驳回；可删除单条申报或审核记录。
             </p>

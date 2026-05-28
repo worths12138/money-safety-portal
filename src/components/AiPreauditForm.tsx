@@ -205,137 +205,135 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
 
   if (portal === "student") {
     return (
-      <div className="student-submit-form">
-        <header className="student-submit-header">
-          <h1>提交报销申报</h1>
-          <span className="student-page-title-accent" aria-hidden />
-          <p>请填写项目信息并上传报销相关凭证，以便审核入库与后续处理。</p>
-        </header>
-
-        <form onSubmit={handleSubmit}>
-          <section className="student-form-section">
-            <h2 className="student-form-section-title">
-              <span className="student-form-section-mark" aria-hidden />
-              合规申报信息
-            </h2>
-            <div className="student-form-grid student-form-grid--2">
-              <label className="span-full">
-                <span className="student-form-label">项目题目</span>
+      <form onSubmit={handleSubmit} className="student-submit-form">
+        <section className="student-form-section">
+          <h2>
+            <span className="student-section-icon" aria-hidden>
+              一
+            </span>
+            合规申报信息
+          </h2>
+          <div className="student-form-grid">
+            <label style={{ gridColumn: "1 / -1" }}>
+              <span>项目题目</span>
+              <input
+                required
+                disabled={submitting}
+                placeholder="例：基于大语言模型的智能代码审查系统研究"
+                value={form.projectName}
+                onChange={(e) => updateField("projectName", e.target.value)}
+              />
+            </label>
+            <label>
+              <span>项目周期</span>
+              <div className="student-input-with-icon">
                 <input
-                  className="student-form-input"
-                  required
-                  disabled={submitting}
-                  placeholder="例：基于大语言模型的智能代码审查系统研究"
-                  value={form.projectName}
-                  onChange={(e) => updateField("projectName", e.target.value)}
-                />
-              </label>
-              <label>
-                <span className="student-form-label">项目周期</span>
-                <input
-                  className="student-form-input"
                   required
                   disabled={submitting}
                   placeholder="选择开始日期 — 选择结束日期"
                   value={form.projectPeriod}
                   onChange={(e) => updateField("projectPeriod", e.target.value)}
                 />
-              </label>
-              <label>
-                <span className="student-form-label">申报总金额</span>
-                <div className="student-form-amount-wrap">
-                  <input
-                    className="student-form-input"
-                    required
-                    disabled={submitting}
-                    placeholder="请输入金额"
-                    value={form.amount}
-                    onChange={(e) => updateField("amount", e.target.value)}
-                  />
-                  <span className="student-form-amount-suffix">元</span>
-                </div>
-              </label>
-              <label className="span-full">
-                <span className="student-form-label">补充说明（选填）</span>
+                <CalendarIcon />
+              </div>
+            </label>
+            <label>
+              <span>申报总金额</span>
+              <div className="student-input-with-suffix">
+                <input
+                  required
+                  disabled={submitting}
+                  placeholder="请输入金额"
+                  value={form.amount}
+                  onChange={(e) => updateField("amount", e.target.value)}
+                />
+                <em>元</em>
+              </div>
+            </label>
+            <label style={{ gridColumn: "1 / -1" }}>
+              <span>补充说明（选填）</span>
+              <div className="student-textarea-wrap">
                 <textarea
-                  className="student-form-textarea"
                   disabled={submitting}
                   placeholder="特殊合规说明、补证情况等"
                   value={form.notes}
                   maxLength={200}
                   onChange={(e) => updateField("notes", e.target.value)}
                 />
-                <p className="student-form-char-count">{form.notes.length}/200</p>
-              </label>
-            </div>
-          </section>
-
-          <section className="student-form-section">
-            <h2 className="student-form-section-title">
-              <span className="student-form-section-mark" aria-hidden />
-              上传报销凭证
-            </h2>
-            <label
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              className={`student-upload-zone ${dragging ? "is-dragging" : ""}`}
-            >
-              <input
-                type="file"
-                multiple
-                accept={ACCEPT_INPUT}
-                disabled={submitting}
-                className="sr-only"
-                onChange={(e) => {
-                  addFiles(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-              <span className="student-upload-zone-icon" aria-hidden>
-                <CloudUploadIcon />
-              </span>
-              <p>点击或拖拽文件到此处上传（PDF / JPG / PNG / WEBP）</p>
-              <p className="hint">
-                图片上传时自动压缩 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · AI 初审在线初筛执行
-              </p>
-            </label>
-
-            {storedFiles.length > 0 ? (
-              <div className="mt-3">
-                {storedFiles.map(({ key, file }) => (
-                  <div key={key} className="student-file-row">
-                    <span>{isVisionFile(file) ? "🖼️" : "📄"}</span>
-                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                    <span className="text-slate-400">{(file.size / 1024).toFixed(0)}KB</span>
-                    {!submitting ? (
-                      <button type="button" onClick={() => removeFile(key)} className="border-0 bg-transparent text-slate-400">
-                        ×
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
+                <small>{form.notes.length}/200</small>
               </div>
-            ) : null}
-          </section>
+            </label>
+          </div>
+        </section>
 
-          <button type="submit" disabled={submitting || visionCount === 0} className="student-submit-btn">
+        <section className="student-form-section">
+          <h2>
+            <span className="student-section-icon" aria-hidden>
+              二
+            </span>
+            上传报销凭证
+          </h2>
+          <label
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`student-upload-zone ${dragging ? "is-dragging" : ""}`}
+          >
+            <input
+              type="file"
+              multiple
+              accept={ACCEPT_INPUT}
+              disabled={submitting}
+              onChange={(e) => {
+                addFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <CloudUploadIcon />
+            <strong>点击或拖拽文件到此处上传（PDF / JPG / PNG / WEBP）</strong>
+            <span>
+              图片上传时自动压缩 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · AI 初审在线初筛执行
+            </span>
+          </label>
+
+          {storedFiles.length > 0 ? (
+            <ul className="student-file-list">
+              {storedFiles.map(({ key, file }) => (
+                <li key={key}>
+                  <span>{isVisionFile(file) ? "🖼️" : "📄"}</span>
+                  <strong>{file.name}</strong>
+                  <span>{(file.size / 1024).toFixed(0)}KB</span>
+                  {!submitting ? (
+                    <button type="button" onClick={() => removeFile(key)} aria-label="移除">
+                      ×
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+
+        <div className="student-submit-actions">
+          <button
+            type="submit"
+            disabled={submitting || visionCount === 0}
+            className="student-primary-btn student-submit-btn"
+          >
             {submitting ? "提交中…" : "提交申报（入库）"}
           </button>
+        </div>
 
-          {visionCount === 0 ? <p className="student-warn-text">请至少上传 1 份 PDF 或图片凭证。</p> : null}
-          {manyMaterialsWarn ? <p className="student-warn-text">{manyMaterialsWarn}</p> : null}
-          {nonVisionCount > 0 ? (
-            <p className="mt-2 text-xs text-slate-400">{nonVisionCount} 个 Word 等文件仅登记文件名，不参与识图。</p>
-          ) : null}
+        {visionCount === 0 ? <p className="student-form-warning">请至少上传 1 份 PDF 或图片凭证。</p> : null}
+        {manyMaterialsWarn ? <p className="student-form-warning">{manyMaterialsWarn}</p> : null}
+        {nonVisionCount > 0 ? (
+          <p className="student-form-muted">{nonVisionCount} 个 Word 等文件仅登记文件名，不参与识图。</p>
+        ) : null}
 
-          {status ? (
-            <div className={`student-status-box ${status.startsWith("❌") ? "is-error" : ""}`}>
-              {status}
-            </div>
-          ) : null}
-        </form>
-      </div>
+        {status ? (
+          <p className={`student-form-status ${status.startsWith("❌") ? "is-error" : ""}`}>{status}</p>
+        ) : null}
+      </form>
     );
   }
 
@@ -501,9 +499,18 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
 
 function CloudUploadIcon() {
   return (
-    <svg viewBox="0 0 40 40" fill="none" className="h-10 w-10" stroke="currentColor" strokeWidth="1.5">
-      <path d="M12 26a6 6 0 0 1 1.2-11.8A8 8 0 0 1 28.5 18 6.5 6.5 0 0 1 27 31H14a5 5 0 0 1-2-5Z" strokeLinejoin="round" />
-      <path d="M20 16v10m0 0-3-3m3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 32 32">
+      <path d="M11 24H9a6 6 0 0 1 0-12 8 8 0 0 1 15.5 2.5A5 5 0 0 1 23 24h-2" />
+      <path d="M16 25V15m0 0-4 4m4-4 4 4" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24">
+      <rect x="4" y="5" width="16" height="15" rx="2" />
+      <path d="M8 3v4M16 3v4M4 10h16" />
     </svg>
   );
 }
