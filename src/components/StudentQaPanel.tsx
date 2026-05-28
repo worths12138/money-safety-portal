@@ -10,12 +10,24 @@ type MatchedRule = {
   source: string;
 };
 
-const EXAMPLES = [
-  "大创报销发票抬头和税号有什么要求？",
-  "买 DeepSeek API 需要准备哪些材料？",
-  "哪些东西不能报销？",
-  "办公用品和图书要签领表吗？",
-];
+const SUGGESTIONS = [
+  {
+    text: "大创报销发票抬头和税号写什么？",
+    icon: "invoice",
+  },
+  {
+    text: "买 API 需要准备哪些材料？",
+    icon: "api",
+  },
+  {
+    text: "哪些东西不能报销？",
+    icon: "ban",
+  },
+  {
+    text: "办公用品和图书要签领表吗？",
+    icon: "sign",
+  },
+] as const;
 
 export function StudentQaPanel() {
   const [question, setQuestion] = useState("");
@@ -56,73 +68,117 @@ export function StudentQaPanel() {
   }
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">你的问题</span>
-          <textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            rows={4}
-            placeholder="例如：电子发票怎么打印？云服务费要交什么材料？"
-            className="mt-2 w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-slate-400 focus:ring-2"
-            required
-            maxLength={2000}
-          />
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              type="button"
-              onClick={() => setQuestion(ex)}
-              className="border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
-            >
-              {ex}
-            </button>
-          ))}
+    <div>
+      <form onSubmit={handleSubmit}>
+        <p className="student-qa-section-label">你的问题</p>
+        <textarea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          rows={5}
+          placeholder="例如：电子发票怎么打印？云服务费要提交什么材料？"
+          className="student-qa-textarea"
+          required
+          maxLength={2000}
+        />
+        <div className="student-qa-submit-wrap">
+          <button type="submit" disabled={loading || !question.trim()} className="student-btn-primary" style={{ maxWidth: "none", minWidth: "9rem" }}>
+            <ChatIcon />
+            {loading ? "生成中…" : "开始提问"}
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={loading || !question.trim()}
-          className="border border-slate-900 bg-slate-900 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {loading ? "正在检索规则并生成回答…" : "提问"}
-        </button>
       </form>
 
-      {error && (
-        <p className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+      {error ? (
+        <p className="student-warn-text" role="alert">
           {error}
         </p>
-      )}
+      ) : null}
 
-      {answer && (
-        <div className="border border-slate-200 bg-white p-5">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">回答</p>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-800">{answer}</p>
+      {answer ? (
+        <div className="student-qa-answer">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">回答</p>
+          <p className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{answer}</p>
+          {matchedRules.length > 0 ? (
+            <ul className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm text-slate-700">
+              {matchedRules.map((r) => (
+                <li key={r.rule_id} className="border-l-2 border-[var(--accent-green)] pl-3">
+                  <span className="font-semibold">{r.rule_id}</span> · {r.category}
+                  {r.risk_tags.length > 0 ? <span className="text-slate-500">（{r.risk_tags.join("、")}）</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      {matchedRules.length > 0 && (
-        <div className="border border-slate-200 bg-slate-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">本次命中规则</p>
-          <ul className="mt-3 space-y-2 text-sm text-slate-700">
-            {matchedRules.map((r) => (
-              <li key={r.rule_id} className="border-l-2 border-slate-400 pl-3">
-                <span className="font-semibold">{r.rule_id}</span> · {r.category}
-                {r.risk_tags.length > 0 && (
-                  <span className="text-slate-500">（{r.risk_tags.join("、")}）</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <p className="student-qa-section-label" style={{ marginTop: answer ? "2rem" : "0.5rem" }}>
+        猜你想问
+      </p>
+      <div className="student-qa-suggestions">
+        {SUGGESTIONS.map((item) => (
+          <button key={item.text} type="button" onClick={() => setQuestion(item.text)} className="student-qa-suggestion">
+            <span className="student-qa-suggestion-icon">
+              <SuggestionIcon kind={item.icon} />
+            </span>
+            {item.text}
+          </button>
+        ))}
+      </div>
 
-      <p className="text-xs text-slate-500">
-        本答疑基于学院制度整理的 14 条结构化规则库（关键词召回），仅供参考；正式审核以指导教师批复为准。
+      <p className="student-qa-disclaimer">
+        <InfoIcon />
+        本问答基于学校财务制度与相关规定生成，仅供参考；最终报销审核以教师审批意见为准。
       </p>
     </div>
   );
+}
+
+function ChatIcon() {
+  return (
+    <svg viewBox="0 0 18 18" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="1.5">
+      <path d="M3 4.5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 15 4.5v6a1.5 1.5 0 0 1-1.5 1.5H8l-3 3v-3H4.5A1.5 1.5 0 0 1 3 10.5v-6Z" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" className="mt-0.5 h-4 w-4 shrink-0" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 7v4M8 5.5v.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SuggestionIcon({ kind }: { kind: (typeof SUGGESTIONS)[number]["icon"] }) {
+  const cls = "h-4 w-4";
+  switch (kind) {
+    case "invoice":
+      return (
+        <svg viewBox="0 0 16 16" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
+          <path d="M4 2h8v12l-2-1.5L8 14l-2-1.5L4 14V2Z" />
+        </svg>
+      );
+    case "api":
+      return (
+        <svg viewBox="0 0 16 16" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
+          <rect x="3" y="4" width="10" height="8" rx="1" />
+          <path d="M6 8h4" strokeLinecap="round" />
+        </svg>
+      );
+    case "ban":
+      return (
+        <svg viewBox="0 0 16 16" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
+          <circle cx="8" cy="8" r="5.5" />
+          <path d="M5 5l6 6" strokeLinecap="round" />
+        </svg>
+      );
+    default:
+      return (
+        <svg viewBox="0 0 16 16" fill="none" className={cls} stroke="currentColor" strokeWidth="1.5">
+          <path d="M4 3h8v10H4V3Z" />
+          <path d="M7 7h5M7 10h3" strokeLinecap="round" />
+        </svg>
+      );
+  }
 }

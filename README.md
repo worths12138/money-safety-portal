@@ -1,54 +1,54 @@
-# 大创报销经费合规风控平台
+# 审盾 · 大创报销经费合规风控平台
 
-中山大学软件工程学院大创项目报销场景的 **合规申报、AI 风控预审、可解释报告与运营复核** 一体化门户（Next.js 16 + Supabase + 智谱 GLM-5V-Turbo）。
+中山大学软件工程学院大创项目报销场景的 **合规申报、RAG 规则答疑、AI 风控预审、可解释报告与教师复核** 一体化门户。
+
+技术栈：**Next.js 16**（App Router）+ **Supabase**（PostgreSQL + Auth）+ **智谱 GLM**（多模态审核 / 文本答疑）。
+
+---
 
 ## 功能概览
 
-### 页面与模块
+### 门户与角色
 
-| 模块 | 路径 | 说明 |
+| 入口 | 路径 | 说明 |
 |------|------|------|
-| 启动页 | `/` | 平台入口 |
-| 首页 | `/home` | 数据看板、快速入口、最近报告、功能概览 |
-| AI 风控预审 | `/preaudit` | 填写申报信息（含**申报总金额**）、上传 PDF/图片凭证，提交后自动识图并生成报告 |
-| 风控报告 | `/report/[id]` | 总体结论、合规风控风险分、金额风险立体饼图、风险表、导出 PDF、重新 Agent 评估 |
-| 运营台 | `/admin` | 按低/中/高风险筛选队列，一键通过或驳回，查看审核记录 |
-| 规则配置 | `/admin/rules` | 维护支出白名单、单笔上限、DDL、特殊凭证要求（写入 Supabase，并注入 Agent 审核） |
+| 身份选择 | `/` | 学生 / 教师分流（审盾品牌首页） |
+| 学生登录 | `/student/login` | Supabase 演示账号 `student1`～`student5` |
+| 教师登录 | `/teacher/login` | 演示账号 `teacher1` |
 
-> `/submit`、`/audit` 已重定向到 `/preaudit`，日常以 **AI 风控预审** 为主入口。
+**学生端**（顶栏：学生首页 · 提交申报 · 合规答疑 · 进度查询）
 
-### 凭证与金额
+| 页面 | 路径 | 说明 |
+|------|------|------|
+| 工作台 | `/student` | 提交 / 答疑 / 进度快捷入口，报销流程与提交前检查 |
+| 提交申报 | `/student/preaudit` | 填写项目信息、上传 PDF/图片（自动压缩，最多 10 份） |
+| AI 合规问答 | `/student/qa` | 基于 **RAG 规则库 v1.3** 的关键词召回 + 智谱文本回答 |
+| 进度查询 | `/student/status` | 按编号查报告、查看本人最近申报列表 |
+| 学生报告 | `/student/report/[id]` | 查看 AI 初审与教师批复（需教师端先发起初审） |
 
-| 能力 | 说明 |
-|------|------|
-| PDF 本地解析 | PyMuPDF（优先）+ `unpdf` 提取文字；扫描页由 PyMuPDF 出图 + 智谱 OCR |
-| 图片金额识图 | 发票/支付截图等逐张识别金额，汇总为凭据合计 |
-| 申报 vs 凭据 | 自动比对**申报总金额**与凭据识别合计；不一致时告警、写入发现项并抬高风险分 |
-| 异常金额校正 | 远超常规大创额度（如百万级、多输零）时自动提高风险分，报告页红条提示 |
+**教师端**（顶栏：数据看板 · 复核队列 · 规则配置）
 
-### 风控报告
+| 页面 | 路径 | 说明 |
+|------|------|------|
+| 数据看板 | `/teacher/dashboard` | 指标统计、队列预览、风控提示、最近审核 |
+| 复核队列 | `/teacher/queue` | 筛选 / 通过 / 驳回，发起 **AI 初审** |
+| 规则配置 | `/teacher/rules` | 白名单、上限、DDL 等（写入 Supabase，注入 Agent） |
+| 风控报告 | `/report/[id]` | 与学生端共用：风险分、饼图、风险表、凭证查看 |
 
-| 能力 | 说明 |
-|------|------|
-| 合规风控风险分 | 0–100，**分数越高风险越大**（&lt;40 低 / 40–69 中 / ≥70 高）；结合规则对 Agent 分数校正 |
-| 金额风险饼图 | 合规 / 低 / 中 / 高风险金额占比（立体饼图 + 图例百分比） |
-| 可解释风险表 | 支出项、金额、问题标签、风险说明与处理建议；支持按标签筛选 |
-| Agent 报告 | 智谱 GLM-5V-Turbo 多模态审核，Markdown 解析入库；支持无凭证时的字段+规则文字审核 |
+> **遗留演示路径**（完整旧导航）：`/home`、`/preaudit`、`/admin` 等仍可用，日常推荐走学生端 / 教师端。
 
-### 运营与数据
+### 核心能力
 
 | 能力 | 说明 |
 |------|------|
-| 人工复核 | 通过/驳回写入 `audit_records`，队列状态同步更新 |
-| 数据保留 | 申报队列与审核记录各最多 **50 条**，超出自动删除最早历史记录 |
-| 凭证存储 | **不持久化**上传文件，仅处理 base64 并保存风控结论与文本摘要 |
+| **RAG 规则库** | `data/reimbursement-rag-rules.json`（v1.3，14 条制度规则 + 冲突处理指引），轻量关键词召回，注入 Agent 与学生答疑 |
+| **多模态审核** | 智谱 GLM 多模态：≤3 张主审附图 + 溢出凭据并行 OCR；教师端发起初审 |
+| **金额一致性** | 申报总金额 vs 凭据识图合计比对，异常抬高风险分 |
+| **凭证暂存** | 内存暂存供教师查看与复审（`MATERIAL_CACHE_TTL_SEC` 可配，演示建议 24h） |
+| **合规风控分** | 0–100，**越高风险越大**（&lt;40 低 / 40–69 中 / ≥70 高） |
+| **人工复核** | 通过 / 驳回写入 `audit_records`，队列状态同步 |
 
-## 技术栈
-
-- [Next.js 16](https://nextjs.org)（App Router）
-- [Supabase](https://supabase.com)（PostgreSQL + 服务端 `service_role`）
-- 智谱 [GLM-5V-Turbo](https://docs.bigmodel.cn)（多模态审核）
-- Python [PyMuPDF](https://pymupdf.readthedocs.io)（可选，PDF 文本提取）
+---
 
 ## 快速开始
 
@@ -60,8 +60,6 @@ npm install
 
 ### 2. 环境变量
 
-复制示例并填写真实值：
-
 ```bash
 cp .env.local.example .env.local
 ```
@@ -69,19 +67,33 @@ cp .env.local.example .env.local
 | 变量 | 必填 | 说明 |
 |------|------|------|
 | `NEXT_PUBLIC_SUPABASE_URL` | 是 | Supabase 项目 URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | 是 | 仅服务端使用，勿暴露到浏览器 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 是 | 浏览器端登录 |
+| `SUPABASE_SERVICE_ROLE_KEY` | 是 | 仅服务端，勿暴露到浏览器 |
 | `ZHIPU_API_KEY` | 是 | 智谱 API Key |
-| `ZHIPU_AUTH` | 否 | 默认 `bearer`；JWT 模式填 `jwt` |
-| `ZHIPU_MODEL` | 否 | 默认 `glm-5v-turbo` |
-| `PDF_PYTHON` | 否 | Python 可执行路径（Windows 常为 `python`） |
-| `PDF_EXTRACT_DISABLE_PYTHON` | 否 | 设为 `1` 则禁用 PyMuPDF，仅用 unpdf |
+| `AUTO_AGENT_ON_SUBMIT` | 否 | 默认 `false`：学生提交仅入库，教师在教师端点「AI 初审」 |
+| `MAX_MATERIAL_FILES` | 否 | 单次最多凭证数，默认 `10` |
+| `MAX_MULTIMODAL_IMAGES_PER_CALL` | 否 | 主审附图张数，默认 `3` |
+| `AGENT_REVIEW_TIMEOUT_MS` | 否 | 初审总超时，默认 `300000`（5 分钟） |
+| `MATERIAL_CACHE_TTL_SEC` | 否 | 凭证内存暂存 TTL，演示可设 `86400` |
+| `ZHIPU_QA_MODEL` | 否 | 学生答疑模型，默认 `glm-4-flash` |
+
+完整说明见 [`.env.local.example`](.env.local.example)。
 
 ### 3. 初始化数据库
 
 在 Supabase SQL Editor 中依次执行：
 
-1. `supabase/schema.sql` — 申报表、审核记录表
-2. `supabase/compliance_rules_migration.sql` — 规则配置表（若使用规则页）
+1. [`supabase/schema.sql`](supabase/schema.sql) — 申报表、审核记录
+2. [`supabase/compliance_rules_migration.sql`](supabase/compliance_rules_migration.sql) — 可配置规则表
+3. [`supabase/auth_profiles_migration.sql`](supabase/auth_profiles_migration.sql) — 用户角色（student / teacher）
+
+创建演示账号：
+
+```bash
+npm run seed:users
+```
+
+（需已配置 `SUPABASE_SERVICE_ROLE_KEY`；密码见 `.env.local.example` 中 `DEMO_AUTH_PASSWORD`。）
 
 ### 4.（推荐）安装 PyMuPDF
 
@@ -91,13 +103,13 @@ cp .env.local.example .env.local
 pip install -r requirements-pdf.txt
 ```
 
-### 5. 启动开发服务
+### 5. 启动
 
 ```bash
 npm run dev
 ```
 
-浏览器打开 [http://localhost:3000](http://localhost:3000)。
+浏览器打开 [http://localhost:3000](http://localhost:3000) → 选择身份 → 登录后使用对应端功能。
 
 ### 6. 生产构建
 
@@ -106,68 +118,89 @@ npm run build
 npm start
 ```
 
-## 主要 API
+腾讯云 + PM2 部署见 [`docs/DEPLOY_TENCENT_LIGHTHOUSE.md`](docs/DEPLOY_TENCENT_LIGHTHOUSE.md)。
+
+---
+
+## 主要 API（节选）
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/submissions` | POST | 提交申报（默认仅入库；`runAgent:true` 或 `AUTO_AGENT_ON_SUBMIT=true` 时同步 Agent） |
-| `/api/agent/review` | POST | 运营台 AI 初审 / 报告页重新评估 |
-| `/api/reports/[id]` | GET | 获取风控报告 |
-| `/api/pdf/extract` | POST | 单份 PDF 文字/金额提取 |
-| `/api/admin/queue` | GET | 运营队列 |
-| `/api/admin/review` | POST | 通过/驳回 |
-| `/api/rules` | GET/PUT | 合规规则 |
+| `/api/submissions` | POST | 提交申报（默认 `runAgent: false`） |
+| `/api/agent/review` | POST | 教师端 AI 初审 / 报告页重新评估 |
+| `/api/student/qa` | POST | 学生 RAG 合规答疑 |
+| `/api/student/submissions` | GET | 当前学生申报列表 |
+| `/api/teacher/dashboard` | GET | 教师看板指标与队列预览 |
+| `/api/reports/[id]` | GET | 风控报告 |
+| `/api/reports/[id]/materials` | GET | 暂存凭证列表（教师 / 学生查看） |
+| `/api/admin/review` | POST | 通过 / 驳回 |
+| `/api/rules` | GET/PUT | 合规规则配置 |
 
-## 风控分说明
-
-**合规风控风险分** 为 0–100：**分数越高，风险越大**，越需优先复核。
-
-- &lt; 40：低风险  
-- 40–69：中风险  
-- ≥ 70：高风险  
-
-系统会根据 **申报总金额异常**、**与凭据金额不一致** 等情况自动上调分数（不完全依赖模型输出）。
+---
 
 ## 项目结构（节选）
 
 ```
+data/
+  reimbursement-rag-rules.json   # RAG 规则库 v1.3
 src/
   app/
-    preaudit/          # AI 风控预审
-    report/[id]/       # 风控报告
-    admin/             # 运营台、规则页
-    api/               # 后端接口
+    page.tsx                       # 身份选择首页
+    student/                       # 学生端页面
+    teacher/                       # 教师端页面
+    report/[id]/                   # 风控报告（共用）
+    api/                           # 后端接口
   components/
-    AiPreauditForm.tsx
-    RiskAmountPieChart.tsx
+    PortalEntryHero.tsx            # 首页身份选择
+    AiPreauditForm.tsx             # 提交申报表单
+    StudentQaPanel.tsx             # 学生答疑
+    student/StudentPageShell.tsx   # 学生页面包屑与标题区
   lib/
-    agent-review.ts        # Agent 评估与回写
-    material-audit.ts      # 凭证识图审核
-    pdf-extract.ts         # PDF 解析
-    voucher-image-amount.ts # 图片金额识别
-    amount-reconciliation.ts # 申报 vs 凭据比对
-    submission-retention.ts  # 运营台 50 条保留
+    rag/                           # 规则召回与 Prompt 注入
+    agent-review.ts                # Agent 评估
+    material-audit.ts              # 凭证识图审核
+docs/
+  RAG_SETUP.md                     # RAG 使用与扩库
+  DEPLOY_TENCENT_LIGHTHOUSE.md     # 腾讯云部署
 supabase/
   schema.sql
-scripts/
-  extract_pdf.py       # PyMuPDF 脚本
+  auth_profiles_migration.sql
 ```
+
+---
+
+## 推荐演示流程
+
+1. 打开 `/` → **我是学生** → `student1` 登录  
+2. **提交申报**：上传发票 / 支付截图 → 提交入库  
+3. **合规答疑**：提问「发票抬头」「API 材料」等，查看 RAG 命中规则  
+4. 切换 **教师端** → `teacher1` 登录 → **复核队列** → 对申报点 **AI 初审**  
+5. 学生端 **进度查询** → 打开报告，查看风险分与整改建议  
+6. 教师 **通过 / 驳回**，学生端查看最终状态  
+
+---
 
 ## 注意事项
 
-- 平台 **不存储** 上传的凭证文件，仅处理 base64 并写入风控结论。
-- 智谱 API 有速率限制；多份 PDF/图片会串行调用，凭证较多时请耐心等待。
-- **生产推荐**：`AUTO_AGENT_ON_SUBMIT=false`，学生在 `/preaudit` 提交后，教师在 `/admin` 点「AI 初审」；图片会在浏览器自动压缩。
-- 腾讯云部署见 [`docs/DEPLOY_TENCENT_LIGHTHOUSE.md`](docs/DEPLOY_TENCENT_LIGHTHOUSE.md)（含 Nginx `client_max_body_size 50m`）。
-- 部署到 Vercel 等平台时，需配置环境变量；PyMuPDF 需在支持 Python 的运行环境或本地部署。
-- 运营台删除最早记录后，对应 `/report/[id]` 链接将失效。
+- 生产环境建议 **`AUTO_AGENT_ON_SUBMIT=false`**，由教师在教师端触发 AI 初审，避免学生提交时长时间等待。  
+- 上传凭证在服务端 **内存暂存**（非对象存储），重启进程或超时后需重新上传；正式环境可接 OSS。  
+- 智谱 API 有速率与超时限制；凭证较多时请耐心等待或调大 `AGENT_REVIEW_TIMEOUT_MS`。  
+- 国内服务器 `git pull` GitHub 可能失败，可参考部署文档使用镜像或本机 `git archive` 上传。  
+- 运营数据默认各保留 **50 条** 历史（申报队列与审核记录），超出自动删除最早记录。  
+
+---
 
 ## 相关文档
 
-- [`docs/DEPLOY_VERCEL.md`](docs/DEPLOY_VERCEL.md) — Vercel 免费部署清单（环境变量、限制、自检）
-- [`docs/DEPLOY_TENCENT_LIGHTHOUSE.md`](docs/DEPLOY_TENCENT_LIGHTHOUSE.md) — **腾讯云轻量服务器**部署（Node + Python + PM2 + Nginx）
-- `AGENTS.md` — 本仓库 Next.js 开发约定（给 AI 助手）
-- `.env.local.example` — 环境变量模板
+| 文档 | 说明 |
+|------|------|
+| [`docs/RAG_SETUP.md`](docs/RAG_SETUP.md) | RAG 规则库、召回方式、环境变量 |
+| [`docs/rag/CHANGELOG_v1.3.md`](docs/rag/CHANGELOG_v1.3.md) | 规则库 v1.3 变更说明 |
+| [`docs/DEPLOY_TENCENT_LIGHTHOUSE.md`](docs/DEPLOY_TENCENT_LIGHTHOUSE.md) | 腾讯云轻量 + PM2 + Nginx |
+| [`docs/DEPLOY_VERCEL.md`](docs/DEPLOY_VERCEL.md) | Vercel 部署清单 |
+| [`AGENTS.md`](AGENTS.md) | Next.js 开发约定（给 AI 助手） |
+
+---
 
 ## License
 

@@ -118,7 +118,7 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState(
     portal === "student"
-      ? `填写申报信息并上传凭证后提交入库；图片将自动压缩。正式 AI 风控报告由指导教师在${reviewDeskLabel}发起初审后生成。`
+      ? ""
       : `填写申报信息并上传凭证后提交入库；图片将自动压缩。完整 AI 风控初审请在${reviewDeskLabel}（/admin）发起。`,
   );
 
@@ -203,16 +203,148 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
     }
   }
 
+  if (portal === "student") {
+    return (
+      <div className="student-submit-form">
+        <header className="student-submit-header">
+          <h1>提交报销申报</h1>
+          <span className="student-page-title-accent" aria-hidden />
+          <p>请填写项目信息并上传报销相关凭证，以便审核入库与后续处理。</p>
+        </header>
+
+        <form onSubmit={handleSubmit}>
+          <section className="student-form-section">
+            <h2 className="student-form-section-title">
+              <span className="student-form-section-mark" aria-hidden />
+              合规申报信息
+            </h2>
+            <div className="student-form-grid student-form-grid--2">
+              <label className="span-full">
+                <span className="student-form-label">项目题目</span>
+                <input
+                  className="student-form-input"
+                  required
+                  disabled={submitting}
+                  placeholder="例：基于大语言模型的智能代码审查系统研究"
+                  value={form.projectName}
+                  onChange={(e) => updateField("projectName", e.target.value)}
+                />
+              </label>
+              <label>
+                <span className="student-form-label">项目周期</span>
+                <input
+                  className="student-form-input"
+                  required
+                  disabled={submitting}
+                  placeholder="选择开始日期 — 选择结束日期"
+                  value={form.projectPeriod}
+                  onChange={(e) => updateField("projectPeriod", e.target.value)}
+                />
+              </label>
+              <label>
+                <span className="student-form-label">申报总金额</span>
+                <div className="student-form-amount-wrap">
+                  <input
+                    className="student-form-input"
+                    required
+                    disabled={submitting}
+                    placeholder="请输入金额"
+                    value={form.amount}
+                    onChange={(e) => updateField("amount", e.target.value)}
+                  />
+                  <span className="student-form-amount-suffix">元</span>
+                </div>
+              </label>
+              <label className="span-full">
+                <span className="student-form-label">补充说明（选填）</span>
+                <textarea
+                  className="student-form-textarea"
+                  disabled={submitting}
+                  placeholder="特殊合规说明、补证情况等"
+                  value={form.notes}
+                  maxLength={200}
+                  onChange={(e) => updateField("notes", e.target.value)}
+                />
+                <p className="student-form-char-count">{form.notes.length}/200</p>
+              </label>
+            </div>
+          </section>
+
+          <section className="student-form-section">
+            <h2 className="student-form-section-title">
+              <span className="student-form-section-mark" aria-hidden />
+              上传报销凭证
+            </h2>
+            <label
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`student-upload-zone ${dragging ? "is-dragging" : ""}`}
+            >
+              <input
+                type="file"
+                multiple
+                accept={ACCEPT_INPUT}
+                disabled={submitting}
+                className="sr-only"
+                onChange={(e) => {
+                  addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <span className="student-upload-zone-icon" aria-hidden>
+                <CloudUploadIcon />
+              </span>
+              <p>点击或拖拽文件到此处上传（PDF / JPG / PNG / WEBP）</p>
+              <p className="hint">
+                图片上传时自动压缩 · 单文件 ≤ {MAX_MATERIAL_MB}MB · 最多 {MAX_MATERIAL_FILES} 个 · AI 初审在线初筛执行
+              </p>
+            </label>
+
+            {storedFiles.length > 0 ? (
+              <div className="mt-3">
+                {storedFiles.map(({ key, file }) => (
+                  <div key={key} className="student-file-row">
+                    <span>{isVisionFile(file) ? "🖼️" : "📄"}</span>
+                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                    <span className="text-slate-400">{(file.size / 1024).toFixed(0)}KB</span>
+                    {!submitting ? (
+                      <button type="button" onClick={() => removeFile(key)} className="border-0 bg-transparent text-slate-400">
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          <button type="submit" disabled={submitting || visionCount === 0} className="student-submit-btn">
+            {submitting ? "提交中…" : "提交申报（入库）"}
+          </button>
+
+          {visionCount === 0 ? <p className="student-warn-text">请至少上传 1 份 PDF 或图片凭证。</p> : null}
+          {manyMaterialsWarn ? <p className="student-warn-text">{manyMaterialsWarn}</p> : null}
+          {nonVisionCount > 0 ? (
+            <p className="mt-2 text-xs text-slate-400">{nonVisionCount} 个 Word 等文件仅登记文件名，不参与识图。</p>
+          ) : null}
+
+          {status ? (
+            <div className={`student-status-box ${status.startsWith("❌") ? "is-error" : ""}`}>
+              {status}
+            </div>
+          ) : null}
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div style={wrapStyle}>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: "#111827" }}>
-          {portal === "student" ? "提交报销申报" : "AI 风控预审"}
-        </h1>
+        <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: "#111827" }}>AI 风控预审</h1>
         <p style={{ fontSize: 12, color: "#9ca3af", margin: "5px 0 0", lineHeight: 1.6 }}>
-          {portal === "student"
-            ? "合规申报入库 · 凭证自动压缩 · 教师在教师端发起 AI 初审后可在进度查询查看报告"
-            : "合规申报入库 · 凭证自动压缩上传 · 运营台发起 AI 风控初审并生成可解释报告"}
+          合规申报入库 · 凭证自动压缩上传 · 运营台发起 AI 风控初审并生成可解释报告
         </p>
       </div>
 
@@ -364,5 +496,14 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
         </div>
       </form>
     </div>
+  );
+}
+
+function CloudUploadIcon() {
+  return (
+    <svg viewBox="0 0 40 40" fill="none" className="h-10 w-10" stroke="currentColor" strokeWidth="1.5">
+      <path d="M12 26a6 6 0 0 1 1.2-11.8A8 8 0 0 1 28.5 18 6.5 6.5 0 0 1 27 31H14a5 5 0 0 1-2-5Z" strokeLinejoin="round" />
+      <path d="M20 16v10m0 0-3-3m3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

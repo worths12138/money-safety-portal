@@ -3,7 +3,7 @@ import Link from "next/link";
 const FLOW_STEPS = [
   { label: "上传凭证", icon: UploadIcon },
   { label: "规则召回", icon: RulesIcon },
-  { label: "票据识别", icon: OcrIcon },
+  { label: "凭证识别", icon: OcrIcon },
   { label: "风险评分", icon: ShieldIcon },
   { label: "报告生成", icon: ReportIcon },
   { label: "教师复核", icon: ReviewIcon },
@@ -11,16 +11,19 @@ const FLOW_STEPS = [
 
 const FEATURES = [
   {
-    title: "多模态凭证分析",
-    desc: "支持 PDF、发票截图、支付记录等，自动 OCR 提取关键字段。",
+    title: "多模态凭证解析",
+    desc: "支持票据、截图与 PDF 材料识别。",
+    icon: OcrFeatureIcon,
   },
   {
     title: "规则增强风控",
-    desc: "融合学院可配置规则与 RAG 制度库，命中条款可解释、可追溯。",
+    desc: "结合报销规则与 AI 判断，提升合规性。",
+    icon: ShieldFeatureIcon,
   },
   {
     title: "教师复核闭环",
-    desc: "风险分、问题明细、整改建议与通过/驳回，形成完整审核链路。",
+    desc: "风险报告清晰可读，复核处理更高效。",
+    icon: TeamFeatureIcon,
   },
 ] as const;
 
@@ -42,8 +45,7 @@ export function PortalEntryHero() {
             审盾 · 大创报销经费合规风控平台
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-            基于多模态凭证分析、规则 RAG 与 AI Agent 的智能风控预审工具。学生提交申报与凭证，教师发起 AI
-            初审并完成风险复核。
+            基于多模态凭证解析、规则引擎与 AI Agent 的智能风控辅助平台
           </p>
         </div>
 
@@ -53,7 +55,7 @@ export function PortalEntryHero() {
               <GraduationIcon />
             </span>
             <span className="portal-entry-role-title">我是学生</span>
-            <span className="portal-entry-role-desc">提交报销申报 · 上传凭证 · 查看整改建议</span>
+            <span className="portal-entry-role-desc">提交材料 | 合规答疑 | 查看整改建议</span>
             <span className="portal-entry-role-cta">进入学生端 →</span>
           </Link>
 
@@ -62,7 +64,7 @@ export function PortalEntryHero() {
               <TeacherIcon />
             </span>
             <span className="portal-entry-role-title text-slate-900">我是指导老师</span>
-            <span className="portal-entry-role-desc text-slate-600">AI 风控预审 · 风险报告 · 复核处理</span>
+            <span className="portal-entry-role-desc text-slate-600">AI 预审 | 风险报告 | 复核处理</span>
             <span className="portal-entry-role-cta portal-entry-role-cta--teacher">进入教师端 →</span>
           </Link>
         </div>
@@ -87,6 +89,9 @@ export function PortalEntryHero() {
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {FEATURES.map((f) => (
           <article key={f.title} className="sysu-card bg-white/90 p-5 backdrop-blur-sm">
+            <span className="portal-entry-feature-icon" aria-hidden>
+              <f.icon />
+            </span>
             <h2 className="text-sm font-semibold text-slate-900">{f.title}</h2>
             <p className="mt-2 text-xs leading-6 text-slate-600 sm:text-sm">{f.desc}</p>
           </article>
@@ -173,6 +178,38 @@ function ReviewIcon() {
       <circle cx="12" cy="8" r="3" />
       <path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" strokeLinecap="round" />
       <path d="M17 10l2 2 3-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function OcrFeatureIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.5">
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 8h6M9 12h6M9 16h4" strokeLinecap="round" />
+      <text x="17" y="9" fontSize="5" fill="currentColor" stroke="none">
+        OCR
+      </text>
+    </svg>
+  );
+}
+
+function ShieldFeatureIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.5">
+      <path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6l-7-3Z" strokeLinejoin="round" />
+      <path d="M9.5 12 11.5 14l4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TeamFeatureIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="9" cy="9" r="2.5" />
+      <circle cx="16" cy="10" r="2" />
+      <path d="M4 18c0-2.2 2.2-4 5-4M14 18c0-1.8 1.5-3.2 3.5-3.5" strokeLinecap="round" />
+      <path d="M12 14v4M10 16h4" strokeLinecap="round" />
     </svg>
   );
 }
