@@ -41,8 +41,8 @@ export function PortalLoginForm({ role, title, subtitle, defaultNext, otherPorta
         throw new Error(payload.message ?? "登录失败");
       }
 
-      router.push(nextPath);
-      router.refresh();
+      // 整页跳转，确保登录 Cookie 生效（避免 router 客户端导航时中间件仍读旧会话）
+      window.location.assign(nextPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");
     } finally {

@@ -28,4 +28,10 @@ comment on column public.submissions.submitter_id is '提交学生 profiles.id�
 -- 3. RLS（可选：服务端仍用 service_role；此处防止误开 anon 直连）
 alter table public.profiles enable row level security;
 
--- 不创建 anon/authenticated 策略 = 默认拒绝；Next.js 使用 service_role 读写
+-- 已登录用户可读自己的 profile（中间件 / 客户端校验角色）
+drop policy if exists profiles_select_own on public.profiles;
+create policy profiles_select_own
+  on public.profiles
+  for select
+  to authenticated
+  using (auth.uid() = id);

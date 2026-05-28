@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { isAuthEnabled } from "@/lib/auth/config";
@@ -11,11 +12,17 @@ function isPublicTeacherPath(pathname: string) {
   return pathname === "/teacher/login";
 }
 
-async function loadRole(
-  supabase: ReturnType<typeof createServerClient>,
-  userId: string,
-): Promise<UserRole | null> {
-  const { data } = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
+/** 用 service_role 读 profiles（RLS 未放行 authenticated 时，anon 会话读不到角色） */
+async function loadRole(userId: string): Promise<UserRole | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+
+  const admin = createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+  if (error) return null;
   const role = data?.role;
   if (role === "student" || role === "teacher") return role;
   return null;
@@ -60,7 +67,7 @@ export async function updateSession(request: NextRequest) {
       url.searchParams.set("next", pathname);
       return NextResponse.redirect(url);
     }
-    const role = await loadRole(supabase, user.id);
+    const role = await loadRole(user.id);
     if (role !== "student") {
       const url = request.nextUrl.clone();
       url.pathname = "/teacher/login";
@@ -76,7 +83,7 @@ export async function updateSession(request: NextRequest) {
       url.searchParams.set("next", pathname);
       return NextResponse.redirect(url);
     }
-    const role = await loadRole(supabase, user.id);
+    const role = await loadRole(user.id);
     if (role !== "teacher") {
       const url = request.nextUrl.clone();
       url.pathname = "/student/login";
