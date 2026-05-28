@@ -24,7 +24,7 @@
 | 提交申报 | `/student/preaudit` | 填写项目信息、上传 PDF/图片（自动压缩，最多 10 份） |
 | AI 合规问答 | `/student/qa` | 基于 **RAG 规则库 v1.3** 的关键词召回 + 智谱文本回答 |
 | 进度查询 | `/student/status` | 按编号查报告、查看本人最近申报列表 |
-| 学生报告 | `/student/report/[id]` | 查看 AI 初审与教师批复（需教师端先发起初审） |
+| 风控报告 | `/student/report/[id]` | 查看 AI 初审与教师批复（需教师端先发起初审） |
 
 **教师端**（顶栏：数据看板 · 复核队列 · 规则配置）
 
@@ -33,9 +33,17 @@
 | 数据看板 | `/teacher/dashboard` | 指标统计、队列预览、风控提示、最近审核 |
 | 复核队列 | `/teacher/queue` | 筛选 / 通过 / 驳回，发起 **AI 初审** |
 | 规则配置 | `/teacher/rules` | 白名单、上限、DDL 等（写入 Supabase，注入 Agent） |
-| 风控报告 | `/report/[id]` | 与学生端共用：风险分、饼图、风险表、凭证查看 |
+| 风控报告 | `/teacher/report/[id]` | 风险分、饼图、风险表、凭证查看（与学生端共用同一报告组件） |
 
-> **遗留演示路径**（完整旧导航）：`/home`、`/preaudit`、`/admin` 等仍可用，日常推荐走学生端 / 教师端。
+### 遗留演示路径（默认关闭）
+
+| 说明 | 内容 |
+|------|------|
+| 正式入口 | 仅 `/` → 学生端 / 教师端，**不要**在生产环境开放旧路径 |
+| 旧路径示例 | `/home`、`/preaudit`、`/admin`、`/report/:id`（无 `/student` 或 `/teacher` 前缀） |
+| 默认行为 | 未开启开关时访问旧路径会 **302 到 `/`** |
+| 本地调试 | `.env.local` 设置 `NEXT_PUBLIC_ENABLE_LEGACY_PORTAL=true` 后重启；身份选择页底部会出现开发入口 |
+| 生产部署 | **勿**设置 `NEXT_PUBLIC_ENABLE_LEGACY_PORTAL`（或显式为 `false`） |
 
 ### 核心能力
 
@@ -76,6 +84,7 @@ cp .env.local.example .env.local
 | `AGENT_REVIEW_TIMEOUT_MS` | 否 | 初审总超时，默认 `300000`（5 分钟） |
 | `MATERIAL_CACHE_TTL_SEC` | 否 | 凭证内存暂存 TTL，演示可设 `86400` |
 | `ZHIPU_QA_MODEL` | 否 | 学生答疑模型，默认 `glm-4-flash` |
+| `NEXT_PUBLIC_ENABLE_LEGACY_PORTAL` | 否 | 默认关闭；仅本地调试旧版 `/home`、`/admin` 等时设为 `true` |
 
 完整说明见 [`.env.local.example`](.env.local.example)。
 
@@ -147,8 +156,9 @@ src/
   app/
     page.tsx                       # 身份选择首页
     student/                       # 学生端页面
-    teacher/                       # 教师端页面
-    report/[id]/                   # 风控报告（共用）
+    teacher/                       # 教师端页面（含 teacher/report/[id]）
+    student/report/[id]/         # 学生端报告入口（复用 report 组件）
+    report/[id]/                   # 报告实现（遗留路径 /report 默认重定向到 /）
     api/                           # 后端接口
   components/
     PortalEntryHero.tsx            # 首页身份选择
@@ -175,14 +185,15 @@ supabase/
 2. **提交申报**：上传发票 / 支付截图 → 提交入库  
 3. **合规答疑**：提问「发票抬头」「API 材料」等，查看 RAG 命中规则  
 4. 切换 **教师端** → `teacher1` 登录 → **复核队列** → 对申报点 **AI 初审**  
-5. 学生端 **进度查询** → 打开报告，查看风险分与整改建议  
-6. 教师 **通过 / 驳回**，学生端查看最终状态  
+5. 学生端 **进度查询** → 打开 `/student/report/[id]`，查看风险分与整改建议  
+6. 教师端 **通过 / 驳回**，学生端查看最终状态  
 
 ---
 
 ## 注意事项
 
 - 生产环境建议 **`AUTO_AGENT_ON_SUBMIT=false`**，由教师在教师端触发 AI 初审，避免学生提交时长时间等待。  
+- 生产环境 **不要** 设置 `NEXT_PUBLIC_ENABLE_LEGACY_PORTAL`；对外只宣传 `/` 与 `/student/*`、`/teacher/*`。  
 - 上传凭证在服务端 **内存暂存**（非对象存储），重启进程或超时后需重新上传；正式环境可接 OSS。  
 - 智谱 API 有速率与超时限制；凭证较多时请耐心等待或调大 `AGENT_REVIEW_TIMEOUT_MS`。  
 - 国内服务器 `git pull` GitHub 可能失败，可参考部署文档使用镜像或本机 `git archive` 上传。  
@@ -198,6 +209,7 @@ supabase/
 | [`docs/rag/CHANGELOG_v1.3.md`](docs/rag/CHANGELOG_v1.3.md) | 规则库 v1.3 变更说明 |
 | [`docs/DEPLOY_TENCENT_LIGHTHOUSE.md`](docs/DEPLOY_TENCENT_LIGHTHOUSE.md) | 腾讯云轻量 + PM2 + Nginx |
 | [`docs/DEPLOY_VERCEL.md`](docs/DEPLOY_VERCEL.md) | Vercel 部署清单 |
+| [`docs/LEGACY_PORTAL.md`](docs/LEGACY_PORTAL.md) | 遗留演示路径开关与路径对照 |
 | [`AGENTS.md`](AGENTS.md) | Next.js 开发约定（给 AI 助手） |
 
 ---

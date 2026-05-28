@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getHomeDashboardMetrics, getHomeRecentReports, quickEntrySteps } from "@/lib/home-data";
+import { isLegacyPortalEnabled } from "@/lib/legacy-portal";
 import { quickHighlights } from "@/lib/site-data";
 
 export type HomeDashboardVariant = "legacy" | "teacher";
@@ -219,9 +220,9 @@ export async function HomeDashboard({ variant = "legacy" }: HomeDashboardProps) 
               </div>
             ))}
           </div>
-          {isTeacher ? (
+          {isTeacher && isLegacyPortalEnabled() ? (
             <p className="mt-4 text-xs text-slate-500">
-              原完整导航（含 /home 演示首页）仍保留，路径不变：
+              开发模式可访问遗留演示首页：
               <Link href="/home" className="ml-1 font-medium underline">
                 /home
               </Link>

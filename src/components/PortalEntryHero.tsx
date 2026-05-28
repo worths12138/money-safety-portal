@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isLegacyPortalEnabled } from "@/lib/legacy-portal";
 
 const FLOW_STEPS = [
   { label: "上传凭证", icon: UploadIcon },
@@ -105,11 +106,13 @@ export function PortalEntryHero() {
         ))}
       </div>
 
-      <p className="portal-entry-dev-link mt-6 text-center text-xs text-slate-500">
-        <Link href="/home" className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700">
-          进入原完整导航（演示/开发）
-        </Link>
-      </p>
+      {isLegacyPortalEnabled() ? (
+        <p className="portal-entry-dev-link mt-6 text-center text-xs text-slate-500">
+          <Link href="/home" className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700">
+            进入原完整导航（仅开发，需 ENABLE_LEGACY_PORTAL）
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }

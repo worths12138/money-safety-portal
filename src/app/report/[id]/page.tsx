@@ -29,6 +29,8 @@ import {
   reportHadVisionAudit,
   reportPendingAgentReview,
 } from "@/lib/report-material-status";
+import type { UserRole } from "@/lib/auth/types";
+import { resolvePortalRole } from "@/lib/portal-nav";
 
 function loadingReport(id: string): ReportData {
   return {
@@ -51,10 +53,23 @@ function loadingReport(id: string): ReportData {
 export default function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const pathname = usePathname();
-  const isStudentPortal = pathname?.startsWith("/student") ?? false;
-  const adminHref = isStudentPortal ? "/teacher/queue" : "/admin";
+  const [authPortalRole, setAuthPortalRole] = useState<UserRole | null>(null);
+  const pathStudent = pathname?.startsWith("/student") ?? false;
+  const pathTeacher = pathname?.startsWith("/teacher") ?? false;
+  const isStudentPortal = pathStudent || authPortalRole === "student";
+  const isTeacherPortal = pathTeacher || authPortalRole === "teacher";
+  const backHref = isStudentPortal
+    ? "/student/status"
+    : isTeacherPortal
+      ? "/teacher/queue"
+      : "/admin";
+  const backLabel = isStudentPortal
+    ? "返回进度查询"
+    : isTeacherPortal
+      ? "返回复核队列"
+      : "返回后台";
   const preauditHref = isStudentPortal ? "/student/preaudit" : "/preaudit";
-  const statusHref = isStudentPortal ? "/student/status" : "/home";
+  const teacherQueueHref = "/teacher/queue";
   const [report, setReport] = useState<ReportData>(() => loadingReport(id));
   const [message, setMessage] = useState("正在拉取风控报告...");
   const [isPrinting, setIsPrinting] = useState(false);
@@ -75,6 +90,26 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     setExportedAt(new Date().toLocaleString("zh-CN"));
   }, []);
+
+  useEffect(() => {
+    if (pathStudent || pathTeacher) return;
+    if (!pathname?.startsWith("/report")) return;
+    if (resolvePortalRole(pathname) !== "legacy") return;
+    let cancelled = false;
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data: { profile?: { role?: UserRole } | null }) => {
+        if (cancelled) return;
+        const role = data.profile?.role;
+        if (role === "student" || role === "teacher") setAuthPortalRole(role);
+      })
+      .catch(() => {
+        if (!cancelled) setAuthPortalRole(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathStudent, pathTeacher, pathname]);
 
   const handleExportPdf = useCallback(() => {
     setExportedAt(new Date().toLocaleString("zh-CN"));
@@ -247,8 +282,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             {pendingAgent ? (
               <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 本条尚未完成 AI 初审。请由教师在{" "}
-                <Link href={adminHref} className="font-semibold underline">
-                  {isStudentPortal ? "教师端" : "运营台"}
+                <Link href={teacherQueueHref} className="font-semibold underline">
+                  教师复核队列
                 </Link>{" "}
                 点击「AI 初审」，或在本页下方使用「重新识图评估」（凭证暂存有效期内）。
               </p>
@@ -268,7 +303,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
-            {!isStudentPortal ? (
+            {isTeacherPortal || (!isStudentPortal && !isTeacherPortal) ? (
               <button
                 type="button"
                 onClick={handleRerunAgent}
@@ -291,15 +326,26 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
             >
               导出 PDF
             </button>
-            <Link href={adminHref} className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">
-              {isStudentPortal ? "教师端" : "返回后台"}
+            <Link
+              href={backHref}
+              className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+            >
+              {backLabel}
             </Link>
             {isStudentPortal ? (
               <Link
-                href={statusHref}
+                href="/student"
                 className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
               >
-                进度查询
+                学生首页
+              </Link>
+            ) : null}
+            {isTeacherPortal ? (
+              <Link
+                href="/teacher/dashboard"
+                className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+              >
+                数据看板
               </Link>
             ) : null}
           </div>

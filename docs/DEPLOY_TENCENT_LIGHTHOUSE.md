@@ -101,8 +101,11 @@ ZHIPU_MODEL=glm-5v-turbo
 
 # 提交只入库，由运营台点「AI 初审」（避免多图同时打满 CPU/API）
 AUTO_AGENT_ON_SUBMIT=false
-# 凭证暂存更久，便于提交后去 /admin 再初审
+# 凭证暂存更久，便于学生提交后教师端再初审
 # MATERIAL_CACHE_TTL_SEC=600
+
+# 生产勿开启；仅本地调试旧版 /home、/admin 等
+# NEXT_PUBLIC_ENABLE_LEGACY_PORTAL=false
 
 # 轻量服务器可用 Python，不要设 PDF_EXTRACT_DISABLE_PYTHON=1
 # PDF_PYTHON=python3
@@ -120,7 +123,7 @@ npm run build
 
 ```bash
 npm start
-# 临时测试：curl http://127.0.0.1:3000/home
+# 临时测试：curl -I http://127.0.0.1:3000/
 # Ctrl+C 停掉，改用 PM2
 ```
 
@@ -187,7 +190,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-浏览器访问：`http://你的公网IP/home`
+浏览器访问：`http://你的公网IP/`（身份选择 → 学生端 / 教师端登录）
 
 > `client_max_body_size 50m` 与 `proxy_read_timeout 300s` 便于压缩后的多图 JSON 上传与运营台 AI 初审；比 Vercel 免费档更宽松。
 
@@ -197,7 +200,7 @@ sudo systemctl reload nginx
 |------|------|
 | 提交 413 | 调大 Nginx `client_max_body_size`（建议 50m） |
 | 提交超时 | 前端已自动压缩图片；确认 `SUBMISSION_JSON_TIMEOUT_MS=120000` |
-| AI 读不出字 | 不要一次在「提交」时跑 Agent；流程：**/preaudit 提交 → /admin 点「AI 初审」** |
+| AI 读不出字 | 不要在学生提交时跑 Agent；流程：**/student/preaudit 提交 → /teacher/queue 点「AI 初审」** |
 | 5 张图仍慢 | 正常：每张先识金额再主审；超过 3 张附图时其余走文本摘要 |
 
 ---
@@ -217,12 +220,12 @@ sudo certbot --nginx -d your.domain.com
 
 | # | 地址 | 预期 |
 |---|------|------|
-| 1 | `/home` | KPI 有数据 |
-| 2 | `/preaudit` | 可上传 PDF/图片并提交（应快速返回，约 30s 内） |
-| 3 | `/admin` | 对某条点 **AI 初审**，完成后风险分更新 |
-| 4 | `/report/xxx` | 报告含风险分与表格 |
-| 5 | `/admin` | 队列、通过/驳回、审核记录正常 |
-| 5 | `/admin/rules` | 规则可保存 |
+| 1 | `/` | 身份选择页正常；直接访问 `/home` 应回到 `/`（未开遗留开关时） |
+| 2 | `/student/preaudit` | 学生登录后可上传并提交（约 30s 内返回） |
+| 3 | `/teacher/queue` | 教师登录后可见队列，点 **AI 初审** 后风险分更新 |
+| 4 | `/teacher/report/xxx` | 报告含风险分与表格 |
+| 5 | `/teacher/queue` | 通过/驳回、审核记录正常 |
+| 6 | `/teacher/rules` | 规则可保存 |
 
 ---
 

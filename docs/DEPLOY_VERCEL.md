@@ -20,7 +20,7 @@
 在 Supabase → **SQL Editor** 依次执行：
 
 1. `supabase/schema.sql` — `submissions`、`audit_records`
-2. `supabase/compliance_rules_migration.sql` — 规则表（若使用 `/admin/rules`）
+2. `supabase/compliance_rules_migration.sql` — 规则表（教师端 `/teacher/rules`）
 
 记下 **Project URL** 与 **service_role key**（Settings → API）。
 
@@ -62,14 +62,14 @@
 
 | # | 检查项 | 预期 |
 |---|--------|------|
-| 1 | `/home` | 首页 KPI 有数字（来自 Supabase） |
-| 2 | `/preaudit` | 表单可打开 |
-| 3 | 提交一条（可无凭证，仅填字段） | 跳转 `/report/xxxxxx` |
-| 4 | `/admin` | 队列出现刚提交的记录 |
-| 5 | 通过/驳回 | 右侧出现审核记录 |
-| 6 | `/admin/rules` | 规则可保存 |
+| 1 | `/` | 身份选择页正常 |
+| 2 | `/student/login` → `/student/preaudit` | 学生可提交（可无凭证，仅填字段） |
+| 3 | `/student/status` | 可见刚提交的申报 |
+| 4 | `/teacher/login` → `/teacher/queue` | 队列出现记录，可点 **AI 初审** |
+| 5 | `/teacher/report/xxxxxx` | 报告可打开 |
+| 6 | `/teacher/rules` | 规则可保存 |
 
-若首页 KPI / 运营台报 **503**，多半是 Supabase 环境变量未配或拼写错误。
+若学生/教师端报 **503**，多半是 Supabase 环境变量未配或拼写错误。生产环境勿设置 `NEXT_PUBLIC_ENABLE_LEGACY_PORTAL`。
 
 ---
 

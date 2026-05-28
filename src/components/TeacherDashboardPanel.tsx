@@ -224,7 +224,7 @@ export function TeacherDashboardPanel() {
                       <p className="mt-2 text-xs text-slate-400">提交于 {item.submittedAt}</p>
                       <p className="mt-2 text-sm leading-6 text-slate-600">{item.summary}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Link href={`/report/${item.id}`} className="teacher-ghost-btn">
+                        <Link href={`/teacher/report/${item.id}`} className="teacher-ghost-btn">
                           查看报告
                         </Link>
                         <button

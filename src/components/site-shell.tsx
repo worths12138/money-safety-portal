@@ -2,32 +2,65 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AuthHeaderBar } from "@/components/AuthHeaderBar";
+import type { UserRole } from "@/lib/auth/types";
 import {
   brandHrefForRole,
   entryPortalHeaderLinks,
+  isReportPath,
   navItemsForRole,
   resolveActiveNavMatch,
+  resolveEffectivePortalRole,
   resolvePortalRole,
   switchPortalLink,
 } from "@/lib/portal-nav";
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const portalRole = useMemo(() => resolvePortalRole(pathname), [pathname]);
+  const [sessionRole, setSessionRole] = useState<UserRole | null>(null);
+  const needsAuthPortalHint =
+    Boolean(pathname?.startsWith("/report")) &&
+    resolvePortalRole(pathname) === "legacy";
+
+  useEffect(() => {
+    if (!needsAuthPortalHint) {
+      setSessionRole(null);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data: { profile?: { role?: UserRole } | null }) => {
+        if (cancelled) return;
+        const role = data.profile?.role;
+        setSessionRole(role === "student" || role === "teacher" ? role : null);
+      })
+      .catch(() => {
+        if (!cancelled) setSessionRole(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsAuthPortalHint, pathname]);
+
+  const portalRole = useMemo(
+    () => resolveEffectivePortalRole(pathname, sessionRole),
+    [pathname, sessionRole],
+  );
   const navItems = useMemo(() => navItemsForRole(portalRole), [portalRole]);
   const activeNavMatch = useMemo(
     () => (pathname ? resolveActiveNavMatch(pathname, navItems) : null),
     [pathname, navItems],
   );
-  const brandHref = brandHrefForRole(portalRole);
+  const brandHref = brandHrefForRole(portalRole, pathname);
   const switchLink = switchPortalLink(portalRole);
   const isStart = pathname === "/";
   const isTeacherLogin = pathname === "/teacher/login";
   const isStudentLogin = pathname === "/student/login";
   const showEntryHeader = portalRole === "entry";
+  const brandReturnsToEntry = showEntryHeader || isReportPath(pathname);
   const backgroundImage = useMemo(() => {
     if (isStart) return "/api/photos/start";
     if (!pathname) return "/api/photos/home";
@@ -83,7 +116,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
             <Link
               href={brandHref}
               className="site-header-brand relative z-[3] flex min-w-0 items-center gap-2 sm:gap-3"
-              title={showEntryHeader ? "返回身份选择" : "返回工作台首页"}
+              title={brandReturnsToEntry ? "返回身份选择" : "返回工作台首页"}
             >
               <span className="site-header-logo relative z-[4] shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -22,6 +22,12 @@ export const teacherNavItems: PortalNavItem[] = [
 
 export type PortalRole = "entry" | "student" | "teacher" | "legacy";
 
+export type SessionPortalRole = "student" | "teacher" | null;
+
+export function isReportPath(pathname: string | null): boolean {
+  return Boolean(pathname?.startsWith("/report") || pathname?.includes("/report/"));
+}
+
 export function isPortalLoginPath(pathname: string | null): boolean {
   return pathname === "/student/login" || pathname === "/teacher/login";
 }
@@ -35,6 +41,19 @@ export function resolvePortalRole(pathname: string | null): PortalRole {
   return "legacy";
 }
 
+/** 旧路径 /report/:id 按登录身份回落到学生/教师顶栏 */
+export function resolveEffectivePortalRole(
+  pathname: string | null,
+  sessionRole?: SessionPortalRole,
+): PortalRole {
+  const base = resolvePortalRole(pathname);
+  if (base !== "legacy") return base;
+  if (!pathname?.startsWith("/report")) return base;
+  if (sessionRole === "student") return "student";
+  if (sessionRole === "teacher") return "teacher";
+  return "legacy";
+}
+
 export function navItemsForRole(role: PortalRole): PortalNavItem[] {
   if (role === "student") return studentNavItems;
   if (role === "teacher") return teacherNavItems;
@@ -42,7 +61,7 @@ export function navItemsForRole(role: PortalRole): PortalNavItem[] {
   return legacyNavItems;
 }
 
-/** 原全站导航（/home、/preaudit 等旧路径保留） */
+/** 遗留全站导航（仅 NEXT_PUBLIC_ENABLE_LEGACY_PORTAL=true 时可访问） */
 export const legacyNavItems: PortalNavItem[] = [
   { href: "/home", label: "首页", match: "/home", shortLabel: "首" },
   { href: "/preaudit", label: "AI 风控预审", match: "/preaudit", shortLabel: "审" },
@@ -64,7 +83,9 @@ export function resolveActiveNavMatch(pathname: string, items: PortalNavItem[]):
   return matches[0]?.match ?? null;
 }
 
-export function brandHrefForRole(role: PortalRole): string {
+export function brandHrefForRole(role: PortalRole, pathname?: string | null): string {
+  /** 风控报告页校徽统一回到身份选择 */
+  if (isReportPath(pathname ?? null)) return "/";
   if (role === "student") return "/student";
   if (role === "teacher") return "/teacher/queue";
   /** 首页校徽：身份选择；未登录用户再点右上角进入各端登录 */

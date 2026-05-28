@@ -335,7 +335,7 @@ export default function AdminPage() {
                       </div>
                       <p className="mt-2 text-xs text-slate-400">{item.submittedAt}</p>
                       <Link
-                        href={`/report/${item.id}`}
+                        href={`/teacher/report/${item.id}`}
                         className="mt-2 inline-block text-sm font-semibold text-[var(--accent-green)] hover:underline"
                       >
                         查看风险评估书 →
