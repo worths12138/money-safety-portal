@@ -76,12 +76,14 @@ type AgentReviewContext = {
   extraText?: string;
 };
 
-async function loadAgentReviewContext({
-  reportId,
-  extraText,
-  materialFiles,
-  materials,
-}: AgentReviewInput): Promise<AgentReviewContext> {
+async function loadAgentReviewContext(
+  input: AgentReviewInput,
+  onProgress?: (step: AgentReviewProgressStep, label: string) => void,
+): Promise<AgentReviewContext> {
+  const reportId = input.reportId;
+  const { extraText, materialFiles, materials } = input;
+
+  onProgress?.("load", "正在从数据库加载申报记录…");
   const supabase = getSupabaseAdmin();
   const { data: existing, error: fetchError } = await supabase
     .from("submissions")
@@ -99,13 +101,24 @@ async function loadAgentReviewContext({
   const submission = existing as SubmissionRow;
 
   if (materials?.length) {
+    onProgress?.("load", `正在暂存 ${materials.length} 份凭证…`);
     saveServerMaterials(reportId, materials);
   }
 
+  onProgress?.("load", "正在读取服务端凭证缓存…");
   const cachedMaterials = loadServerMaterials(reportId);
   const usedCachedMaterials = Boolean(!materials?.length && cachedMaterials?.length);
   const effectiveMaterials = materials?.length ? materials : cachedMaterials ?? undefined;
   const visionMaterials = effectiveMaterials?.length ? filterVisionMaterials(effectiveMaterials) : [];
+
+  if (visionMaterials.length > 0) {
+    onProgress?.(
+      "load",
+      `已加载申报，共 ${visionMaterials.length} 份可识图凭证，准备审核…`,
+    );
+  } else {
+    onProgress?.("load", "已加载申报（无可识图凭证，将基于字段与规则生成）…");
+  }
 
   return {
     submission,
@@ -143,12 +156,14 @@ async function generateAgentMarkdown(
       },
       {
         onProgress: (label) => {
-          if (/PDF/.test(label)) {
+          if (/PDF|提取/.test(label)) {
             onProgress?.("pdf_extract", label);
-          } else if (/识别/.test(label)) {
+          } else if (/识别|并行|金额|张凭证/.test(label)) {
             onProgress?.("image_ocr", label);
-          } else if (/生成/.test(label)) {
+          } else if (/生成|智谱|GLM/.test(label)) {
             onProgress?.("generating", label);
+          } else if (/规则|知识|检索|并行|申报|凭证|数据库|缓存/.test(label)) {
+            onProgress?.("load", label);
           } else {
             onProgress?.("load", label);
           }
@@ -180,7 +195,12 @@ async function generateAgentMarkdown(
         onProgress?.("image_ocr", `正在识别 ${prepared.images.length} 张凭证金额…`);
       }
       const imageExtractions =
-        prepared.images.length > 0 ? await extractAmountsFromImages(prepared.images) : [];
+        prepared.images.length > 0
+          ? await extractAmountsFromImages(prepared.images, {
+              onProgress: (done, total, name) =>
+                onProgress?.("image_ocr", `金额识别进度 ${done}/${total}：${name}`),
+            })
+          : [];
       const voucherSummary = summarizeVoucherAmounts({
         pdfDocuments: prepared.pdfDocuments,
         imageExtractions,
@@ -318,8 +338,9 @@ export async function runAgentReviewStream(
   input: AgentReviewInput,
   callbacks?: AgentReviewStreamCallbacks,
 ) {
-  callbacks?.onProgress?.("load", "正在加载申报记录…");
-  const ctx = await loadAgentReviewContext(input);
+  const onProgress = callbacks?.onProgress;
+  onProgress?.("load", "正在加载申报记录…");
+  const ctx = await loadAgentReviewContext(input, onProgress);
 
   const { markdown, amountRecon } = await generateAgentMarkdown(ctx, callbacks);
 

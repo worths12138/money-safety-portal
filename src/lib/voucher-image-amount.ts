@@ -122,7 +122,11 @@ async function extractOneWithFallback(img: VisionImageMaterial): Promise<ImageAm
 /** 有限并发识图（用于超出主审附图数量的凭据） */
 export async function extractAmountsFromImages(
   images: VisionImageMaterial[],
-  options?: { gapMs?: number; concurrency?: number },
+  options?: {
+    gapMs?: number;
+    concurrency?: number;
+    onProgress?: (done: number, total: number, name: string) => void;
+  },
 ): Promise<ImageAmountExtraction[]> {
   if (images.length === 0) return [];
 
@@ -131,12 +135,15 @@ export async function extractAmountsFromImages(
   const results: ImageAmountExtraction[] = new Array(images.length);
 
   let nextIndex = 0;
+  let completed = 0;
 
   async function worker() {
     while (true) {
       const i = nextIndex++;
       if (i >= images.length) break;
       results[i] = await extractOneWithFallback(images[i]);
+      completed += 1;
+      options?.onProgress?.(completed, images.length, images[i].name);
       if (gap > 0 && i < images.length - 1) {
         await sleep(gap);
       }

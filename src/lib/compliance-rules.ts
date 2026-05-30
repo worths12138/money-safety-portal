@@ -16,6 +16,9 @@ export type ComplianceRulesRecord = ComplianceRulesConfig & {
 
 const RULES_ROW_ID = "default";
 
+const RULES_PROMPT_CACHE_MS = 60_000;
+let cachedFullRulesPrompt: { value: string; at: number } | null = null;
+
 let memoryRules: ComplianceRulesConfig = { ...defaultRules };
 
 function normalizeConfig(input: ComplianceRulesConfig): ComplianceRulesConfig {
@@ -83,8 +86,14 @@ export async function getComplianceRules(): Promise<ComplianceRulesRecord> {
 }
 
 export async function getFullAuditRulesPrompt(): Promise<string> {
+  const now = Date.now();
+  if (cachedFullRulesPrompt && now - cachedFullRulesPrompt.at < RULES_PROMPT_CACHE_MS) {
+    return cachedFullRulesPrompt.value;
+  }
   const rules = await getComplianceRules();
-  return buildFullAuditRulesPrompt(rules);
+  const value = buildFullAuditRulesPrompt(rules);
+  cachedFullRulesPrompt = { value, at: now };
+  return value;
 }
 
 export async function saveComplianceRules(
@@ -95,6 +104,7 @@ export async function saveComplianceRules(
 
   if (!isSupabaseConfigured()) {
     memoryRules = normalized;
+    cachedFullRulesPrompt = null;
     return { ...normalized, storage: "memory" };
   }
 
@@ -117,5 +127,6 @@ export async function saveComplianceRules(
   }
 
   memoryRules = normalized;
+  cachedFullRulesPrompt = null;
   return rowToConfig(data);
 }

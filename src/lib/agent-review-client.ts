@@ -45,6 +45,8 @@ export async function streamAgentReview(
   callbacks: AgentReviewStreamCallbacks,
   signal?: AbortSignal,
 ) {
+  callbacks.onProgress?.({ step: "load", label: "正在请求服务端…" });
+
   const response = await fetch("/api/agent/review/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   GENERATING_STEPS,
   stepIndex,
@@ -107,15 +107,48 @@ function ReportSkeleton() {
   );
 }
 
+function staleHint(step: AgentReviewProgressStep, staleSec: number): string | null {
+  if (staleSec < 12) return null;
+  if (step === "load" || step === "pdf_extract") {
+    return "仍在处理凭证与规则（Supabase / PDF 解析可能较慢），请稍候…";
+  }
+  if (step === "image_ocr") {
+    return "正在逐张识别凭证金额（每张约 3～10 秒），请稍候…";
+  }
+  if (step === "generating") {
+    return "智谱模型正在生成报告（通常 30～90 秒），可展开下方预览查看输出…";
+  }
+  if (step === "parsing") {
+    return "正在解析并写入报告…";
+  }
+  return "处理耗时较长，请保持页面打开…";
+}
+
 export function ReportGeneratingPanel({ projectName, progress, streamMarkdown, error }: Props) {
   const activeStep = progress?.step ?? "load";
   const activeLabel = progress?.label ?? "正在启动 AI 风控…";
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const lastProgressAt = useRef(Date.now());
+
+  useEffect(() => {
+    lastProgressAt.current = Date.now();
+  }, [progress?.step, progress?.label]);
+
+  useEffect(() => {
+    if (error) return;
+    const timer = window.setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - lastProgressAt.current) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [error, progress?.step, progress?.label]);
 
   const headline = useMemo(() => {
     if (error) return "生成失败";
     if (activeStep === "done") return "报告即将呈现…";
     return "正在生成风控报告";
   }, [activeStep, error]);
+
+  const hint = staleHint(activeStep, elapsedSec);
 
   return (
     <section className="sysu-card px-7 py-9">
@@ -134,10 +167,18 @@ export function ReportGeneratingPanel({ projectName, progress, streamMarkdown, e
         </div>
       ) : (
         <>
-          <div className="mt-6 flex items-center gap-3 text-sm text-slate-600">
+          <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-slate-600">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
             <span>{activeLabel}</span>
+            {elapsedSec >= 5 ? (
+              <span className="text-xs text-slate-400">当前步骤已进行约 {elapsedSec} 秒</span>
+            ) : null}
           </div>
+          {hint ? (
+            <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-900">
+              {hint}
+            </p>
+          ) : null}
           <StepIndicator activeStep={activeStep} activeLabel={activeLabel} />
           <StreamMarkdownPreview text={streamMarkdown} />
           <ReportSkeleton />

@@ -177,12 +177,14 @@ export async function runVisionAgentAudit(
   const onProgress = callbacks?.onProgress;
   const onDelta = callbacks?.onDelta;
 
-  onProgress?.("正在加载审核规则与知识库…");
-  const fullRulesPrompt = await getFullAuditRulesPrompt();
-  const { pdfText, pdfDocuments, images, skippedNames } = await prepareMaterialsForAudit(
-    input.materials,
-    onProgress,
-  );
+  onProgress?.("正在并行加载规则与提取凭证…");
+  const [fullRulesPrompt, prepared] = await Promise.all([
+    getFullAuditRulesPrompt(),
+    prepareMaterialsForAudit(input.materials, onProgress),
+  ]);
+  const { pdfText, pdfDocuments, images, skippedNames } = prepared;
+
+  onProgress?.("正在检索规则库知识…");
   const { ragPromptBlock } = buildRagAuditContext({
     projectName: input.projectName,
     projectPeriod: input.projectPeriod,
@@ -209,6 +211,8 @@ export async function runVisionAgentAudit(
     onProgress?.(`正在并行识别其余 ${overflowImages.length} 张凭证金额…`);
     imageExtractions = await extractAmountsFromImages(overflowImages, {
       concurrency: IMAGE_EXTRACT_CONCURRENCY,
+      onProgress: (done, total, name) =>
+        onProgress?.(`金额识别进度 ${done}/${total}：${name}`),
     });
     overflowImageText = `\n【其余 ${overflowImages.length} 张凭据（已并行识图，未再附图；主审已附发票/支付/清单等优先凭证）】\n${imageExtractions
       .map((e) => `• ${e.name}\n${e.text}`)

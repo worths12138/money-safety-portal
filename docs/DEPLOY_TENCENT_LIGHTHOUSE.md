@@ -165,6 +165,22 @@ server {
 
     client_max_body_size 50m;
 
+    # 流式 AI 初审：关闭缓冲，否则进度会卡在「准备审核」
+    location /api/agent/review/stream {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        chunked_transfer_encoding on;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -202,6 +218,7 @@ sudo systemctl reload nginx
 | 提交超时 | 前端已自动压缩图片；确认 `SUBMISSION_JSON_TIMEOUT_MS=120000` |
 | AI 读不出字 | 不要在学生提交时跑 Agent；流程：**/student/preaudit 提交 → /teacher/queue 点「AI 初审」** |
 | 5 张图仍慢 | 正常：每张先识金额再主审；超过 3 张附图时其余走文本摘要 |
+| 进度卡在「准备审核」 | Nginx 需对 `/api/agent/review/stream` 设置 `proxy_buffering off`（见上文配置） |
 
 ---
 

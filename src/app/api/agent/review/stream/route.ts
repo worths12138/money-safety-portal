@@ -2,6 +2,11 @@ import { authErrorResponse } from "@/lib/auth/session";
 import { getTeacherIfAuth } from "@/lib/auth/api-guard";
 import { checkTeacherAgentQuota } from "@/lib/auth/teacher-agent-limit";
 import { runAgentReviewStream, type AgentReviewInput } from "@/lib/agent-review";
+import {
+  AGENT_REVIEW_SSE_HEADERS,
+  sseComment,
+  sseEncode,
+} from "@/lib/agent-review-sse";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { agentReviewTimeoutMs } from "@/lib/material-limits";
 import { getMaterialCacheStatus } from "@/lib/report-material-cache-server";
@@ -9,12 +14,9 @@ import { getReportById } from "@/lib/submissions-db";
 import { rateLimit, getClientTimeoutHeader, withTimeout } from "@/lib/server-guards";
 
 export const maxDuration = 300;
+export const dynamic = "force-dynamic";
 
 type AgentReviewBody = AgentReviewInput;
-
-function sseEncode(event: string, data: unknown) {
-  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-}
 
 export async function POST(request: Request) {
   const configError = ensureSupabaseConfigured();
@@ -24,36 +26,22 @@ export async function POST(request: Request) {
 
   const limited = rateLimit(request, "agent-review-stream", 6, 60_000);
   if (!limited.allowed) {
-    return new Response(
-      sseEncode("error", { message: "Agent 风控请求过于频繁。" }),
-      {
-        status: 429,
-        headers: {
-          "Content-Type": "text/event-stream",
-          ...getClientTimeoutHeader(limited.resetAt),
-        },
+    return new Response(sseEncode("error", { message: "Agent 风控请求过于频繁。" }), {
+      status: 429,
+      headers: {
+        ...AGENT_REVIEW_SSE_HEADERS,
+        ...getClientTimeoutHeader(limited.resetAt),
       },
-    );
+    });
   }
 
   let body: AgentReviewBody;
   try {
-    const teacher = await getTeacherIfAuth();
-    if (teacher) {
-      const quota = checkTeacherAgentQuota(teacher.id);
-      if (!quota.allowed) {
-        return new Response(sseEncode("error", { message: quota.message }), {
-          status: 429,
-          headers: { "Content-Type": "text/event-stream" },
-        });
-      }
-    }
-
     body = (await withTimeout(request.json(), 30_000)) as AgentReviewBody;
     if (!body.reportId?.trim()) {
       return new Response(sseEncode("error", { message: "缺少 reportId。" }), {
         status: 400,
-        headers: { "Content-Type": "text/event-stream" },
+        headers: AGENT_REVIEW_SSE_HEADERS,
       });
     }
   } catch (error) {
@@ -63,7 +51,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "请求解析失败";
     return new Response(sseEncode("error", { message }), {
       status: 400,
-      headers: { "Content-Type": "text/event-stream" },
+      headers: AGENT_REVIEW_SSE_HEADERS,
     });
   }
 
@@ -76,9 +64,28 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode(sseEncode(event, data)));
       };
 
-      send("progress", { step: "load", label: "服务端已连接，正在准备审核…" });
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(sseComment("keepalive")));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, 2500);
+
+      send("progress", { step: "load", label: "服务端已连接，正在验证权限…" });
 
       try {
+        const teacher = await getTeacherIfAuth();
+        if (teacher) {
+          const quota = checkTeacherAgentQuota(teacher.id);
+          if (!quota.allowed) {
+            send("error", { message: quota.message });
+            return;
+          }
+        }
+
+        send("progress", { step: "load", label: "权限验证通过，开始加载申报…" });
+
         const result = await withTimeout(
           runAgentReviewStream(
             {
@@ -121,16 +128,13 @@ export async function POST(request: Request) {
           send("error", { message });
         }
       } finally {
+        clearInterval(heartbeat);
         controller.close();
       }
     },
   });
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
+    headers: AGENT_REVIEW_SSE_HEADERS,
   });
 }
