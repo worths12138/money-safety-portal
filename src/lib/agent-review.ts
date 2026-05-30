@@ -318,8 +318,8 @@ export async function runAgentReviewStream(
   input: AgentReviewInput,
   callbacks?: AgentReviewStreamCallbacks,
 ) {
-  const ctx = await loadAgentReviewContext(input);
   callbacks?.onProgress?.("load", "正在加载申报记录…");
+  const ctx = await loadAgentReviewContext(input);
 
   const { markdown, amountRecon } = await generateAgentMarkdown(ctx, callbacks);
 

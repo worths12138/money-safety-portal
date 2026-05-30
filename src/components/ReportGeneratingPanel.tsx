@@ -109,7 +109,7 @@ function ReportSkeleton() {
 
 export function ReportGeneratingPanel({ projectName, progress, streamMarkdown, error }: Props) {
   const activeStep = progress?.step ?? "load";
-  const activeLabel = progress?.label ?? "正在初始化…";
+  const activeLabel = progress?.label ?? "正在启动 AI 风控…";
 
   const headline = useMemo(() => {
     if (error) return "生成失败";

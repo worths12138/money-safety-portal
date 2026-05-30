@@ -91,7 +91,9 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const [exportedAt, setExportedAt] = useState("");
   const [rerunningAgent, setRerunningAgent] = useState(false);
   const [generating, setGenerating] = useState(autoGenerateRequested);
-  const [generateProgress, setGenerateProgress] = useState<AgentReviewStreamProgress | null>(null);
+  const [generateProgress, setGenerateProgress] = useState<AgentReviewStreamProgress | null>(() =>
+    autoGenerateRequested ? { step: "load", label: "正在连接 AI 风控服务…" } : null,
+  );
   const [streamMarkdown, setStreamMarkdown] = useState("");
   const [generateError, setGenerateError] = useState("");
   const [materialCache, setMaterialCache] = useState<MaterialCacheInfo>({
@@ -253,12 +255,12 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   }, [loadReport]);
 
   useEffect(() => {
-    if (!autoGenerateRequested || agentStreamStarted.current || generating || rerunningAgent) {
+    if (!autoGenerateRequested || agentStreamStarted.current) {
       return;
     }
     agentStreamStarted.current = true;
     void startAgentStream();
-  }, [autoGenerateRequested, generating, rerunningAgent, startAgentStream]);
+  }, [autoGenerateRequested, startAgentStream]);
 
   useEffect(() => {
     if (!materialCache.available) return;

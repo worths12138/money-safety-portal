@@ -76,6 +76,8 @@ export async function POST(request: Request) {
         controller.enqueue(encoder.encode(sseEncode(event, data)));
       };
 
+      send("progress", { step: "load", label: "服务端已连接，正在准备审核…" });
+
       try {
         const result = await withTimeout(
           runAgentReviewStream(
