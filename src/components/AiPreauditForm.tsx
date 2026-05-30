@@ -186,9 +186,10 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
         throw new Error(payload.message ?? "提交失败");
       }
 
-      const payload = (await response.json()) as { id: string; message: string };
+      const payload = (await response.json()) as { id: string; message: string; generating?: boolean };
       setStatus(payload.message);
-      router.push(`${reportBase}/${payload.id}`);
+      const suffix = payload.generating ? "?generating=1" : "";
+      router.push(`${reportBase}/${payload.id}${suffix}`);
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "AbortError"

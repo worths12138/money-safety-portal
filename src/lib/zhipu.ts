@@ -73,6 +73,47 @@ export async function resolveZhipuAuthorization() {
   return `Bearer ${apiKey}`;
 }
 
+/** 流式调用，逐段回调 delta；返回完整文本 */
+export async function zhipuChatCompletionStream({
+  messages,
+  system,
+  model = getZhipuModelId(),
+  maxTokens = 4096,
+  onDelta,
+}: {
+  messages: ZhipuMessage[];
+  system?: string;
+  model?: string;
+  maxTokens?: number;
+  onDelta?: (delta: string, full: string) => void;
+}) {
+  const { fetchZhipuChatCompletions } = await import("@/lib/zhipu-upstream");
+  const { readZhipuStreamBody } = await import("@/lib/zhipu-stream");
+  const authorization = await resolveZhipuAuthorization();
+  const glmMessages = system ? [{ role: "system", content: system }, ...messages] : messages;
+
+  const upstream = await fetchZhipuChatCompletions({
+    authorization,
+    body: {
+      model: model || getZhipuModelId(),
+      messages: glmMessages,
+      stream: true,
+      max_tokens: maxTokens,
+      temperature: 0.3,
+    },
+  });
+
+  if (!upstream.body) {
+    throw new Error("智谱 API 流式响应体为空");
+  }
+
+  const content = await readZhipuStreamBody(upstream.body, onDelta);
+  if (!content) {
+    throw new Error("智谱 API 返回内容为空");
+  }
+  return content;
+}
+
 /** 非流式调用，供 Agent 风控回写数据库 */
 export async function zhipuChatCompletion({
   messages,

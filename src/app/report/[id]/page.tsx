@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReportGeneratingPanel } from "@/components/ReportGeneratingPanel";
 import { RiskAmountPieChart } from "@/components/RiskAmountPieChart";
 import { exportReportPdf } from "@/lib/export-report-pdf";
+import {
+  streamAgentReview,
+  type AgentReviewStreamProgress,
+} from "@/lib/agent-review-client";
 import { formatConclusionForDisplay, formatSummaryForDisplay } from "@/lib/parse-audit-report";
 import {
   adjustRiskScoreForAmountMismatch,
@@ -59,6 +64,9 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const { id } = use(params);
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoGenerateRequested = searchParams.get("generating") === "1";
+  const agentStreamStarted = useRef(false);
   const [authPortalRole, setAuthPortalRole] = useState<UserRole | null>(null);
   const pathStudent = isStudentReportPath(pathname);
   const pathTeacher = isTeacherReportPath(pathname);
@@ -82,6 +90,10 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const [isPrinting, setIsPrinting] = useState(false);
   const [exportedAt, setExportedAt] = useState("");
   const [rerunningAgent, setRerunningAgent] = useState(false);
+  const [generating, setGenerating] = useState(autoGenerateRequested);
+  const [generateProgress, setGenerateProgress] = useState<AgentReviewStreamProgress | null>(null);
+  const [streamMarkdown, setStreamMarkdown] = useState("");
+  const [generateError, setGenerateError] = useState("");
   const [materialCache, setMaterialCache] = useState<MaterialCacheInfo>({
     available: false,
     count: 0,
@@ -110,7 +122,9 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         const role = data.profile?.role;
         if (role === "student" || role === "teacher") {
           setAuthPortalRole(role);
-          router.replace(reportPathForRole(role, id));
+          const base = reportPathForRole(role, id);
+          const href = autoGenerateRequested ? `${base}?generating=1` : base;
+          router.replace(href);
         }
       })
       .catch(() => {
@@ -119,7 +133,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     return () => {
       cancelled = true;
     };
-  }, [pathStudent, pathTeacher, pathname, isLegacyReportUrl, id, router]);
+  }, [pathStudent, pathTeacher, pathname, isLegacyReportUrl, id, router, autoGenerateRequested]);
 
   const handleExportPdf = useCallback(() => {
     setExportedAt(new Date().toLocaleString("zh-CN"));
@@ -131,7 +145,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     });
   }, [id, report.projectName]);
 
-  const loadReport = useCallback(() => {
+  const loadReport = useCallback((options?: { quiet?: boolean }) => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 12_000);
 
@@ -148,7 +162,10 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
         if (payload.materialCache) {
           setMaterialCache(payload.materialCache);
         }
-        setMessage("风控报告已加载完成。");
+        if (!options?.quiet) {
+          setMessage("风控报告已加载完成。");
+        }
+        return payload.report;
       })
       .catch((error: unknown) => {
         setMessage(
@@ -158,13 +175,90 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
               ? error.message
               : "风控报告加载失败。",
         );
+        return null;
       })
       .finally(() => window.clearTimeout(timer));
   }, [id]);
 
+  const clearGeneratingQuery = useCallback(() => {
+    if (!autoGenerateRequested) return;
+    router.replace(pathname);
+  }, [autoGenerateRequested, pathname, router]);
+
+  const startAgentStream = useCallback(async () => {
+    if (cacheExpired) {
+      setMessage(`凭证暂存已过期（${MATERIAL_CACHE_TTL_SEC} 秒），请返回预审核页重新上传后再评估。`);
+      return;
+    }
+
+    setGenerating(true);
+    setRerunningAgent(true);
+    setGenerateError("");
+    setStreamMarkdown("");
+    setGenerateProgress({ step: "load", label: "正在连接 AI 风控服务…" });
+    setMessage(
+      canRerunVision
+        ? `正在使用服务端暂存的 ${materialCache.count} 份凭证重新识图评估…`
+        : "正在调用 GLM-5V-Turbo 生成风控报告…",
+    );
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 300_000);
+
+    try {
+      await streamAgentReview(
+        id,
+        {
+          onProgress: (progress) => {
+            setGenerateProgress(progress);
+            setMessage(progress.label);
+          },
+          onDelta: (markdown) => setStreamMarkdown(markdown),
+          onDone: (payload) => {
+            if (payload.report) {
+              setReport(payload.report);
+            }
+            if (payload.materialCache) {
+              setMaterialCache(payload.materialCache);
+            }
+            setGenerateProgress({ step: "done", label: payload.message });
+            setMessage(payload.message);
+          },
+          onError: (errMessage) => {
+            throw new Error(errMessage);
+          },
+        },
+        controller.signal,
+      );
+    } catch (error) {
+      const errMessage =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Agent 评估超时，请稍后重试。"
+          : error instanceof Error
+            ? error.message
+            : "Agent 评估失败。";
+      setGenerateError(errMessage);
+      setMessage(errMessage);
+    } finally {
+      window.clearTimeout(timer);
+      setRerunningAgent(false);
+      setGenerating(false);
+      clearGeneratingQuery();
+      await loadReport({ quiet: true });
+    }
+  }, [cacheExpired, canRerunVision, clearGeneratingQuery, id, loadReport, materialCache.count]);
+
   useEffect(() => {
     void loadReport();
   }, [loadReport]);
+
+  useEffect(() => {
+    if (!autoGenerateRequested || agentStreamStarted.current || generating || rerunningAgent) {
+      return;
+    }
+    agentStreamStarted.current = true;
+    void startAgentStream();
+  }, [autoGenerateRequested, generating, rerunningAgent, startAgentStream]);
 
   useEffect(() => {
     if (!materialCache.available) return;
@@ -182,56 +276,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   }, [materialCache.available]);
 
   const handleRerunAgent = useCallback(async () => {
-    if (cacheExpired) {
-      setMessage(`凭证暂存已过期（${MATERIAL_CACHE_TTL_SEC} 秒），请返回预审核页重新上传后再评估。`);
-      return;
-    }
-    setRerunningAgent(true);
-    setMessage(
-      canRerunVision
-        ? `正在使用服务端暂存的 ${materialCache.count} 份凭证重新识图评估（约 30–120 秒）…`
-        : "正在调用 GLM-5V-Turbo 重新评估（约 30–60 秒）…",
-    );
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), MATERIAL_CACHE_TTL_SEC * 1000);
-    try {
-      const response = await fetch("/api/agent/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId: id }),
-        signal: controller.signal,
-      });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        message?: string;
-        report?: ReportData;
-        materialCache?: MaterialCacheInfo;
-      };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.message ?? "Agent 评估失败");
-      }
-      if (payload.report) {
-        setReport(payload.report);
-      } else {
-        await loadReport();
-      }
-      if (payload.materialCache) {
-        setMaterialCache(payload.materialCache);
-      }
-      setMessage(payload.message ?? "Agent 评估已完成。");
-    } catch (error) {
-      setMessage(
-        error instanceof DOMException && error.name === "AbortError"
-          ? "Agent 评估超时，请稍后重试。"
-          : error instanceof Error
-            ? error.message
-            : "Agent 评估失败。",
-      );
-    } finally {
-      window.clearTimeout(timer);
-      setRerunningAgent(false);
-    }
-  }, [cacheExpired, canRerunVision, id, loadReport, materialCache.count]);
+    await startAgentStream();
+  }, [startAgentStream]);
 
   const rawRiskRows = useMemo(
     () => (report.riskRows?.length ? report.riskRows : defaultRiskRows),
@@ -255,6 +301,27 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   const amountAnomaly = detectAmountAnomaly(parseDeclaredAmountYuan(report.amount || ""));
   const displayConclusion = formatConclusionForDisplay(report.conclusion || "", effectiveRiskScore);
   const displaySummary = formatSummaryForDisplay(report.summary || "");
+
+  if (generating) {
+    return (
+      <div className="report-print-root mx-auto flex w-full max-w-6xl flex-col gap-8 print:max-w-none">
+        <ReportGeneratingPanel
+          projectName={report.projectName}
+          progress={generateProgress}
+          streamMarkdown={streamMarkdown}
+          error={generateError}
+        />
+        <div className="no-print flex flex-wrap gap-3">
+          <Link
+            href={backHref}
+            className="border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+          >
+            {backLabel}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="report-print-root mx-auto flex w-full max-w-6xl flex-col gap-8 print:max-w-none">

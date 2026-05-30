@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { runAgentReview } from "@/lib/agent-review";
 import { ensureSupabaseConfigured } from "@/lib/api-config";
 import { rateLimit, getClientTimeoutHeader, timeoutResponse, withTimeout } from "@/lib/server-guards";
 import { authErrorResponse } from "@/lib/auth/session";
@@ -77,23 +76,9 @@ export async function POST(request: Request) {
       : "申报已入库。请在运营台对该条记录点击「AI 初审」，或稍后在报告页重新评估。";
 
     if (runAgent) {
-      try {
-        await withTimeout(
-          runAgentReview({
-            reportId: report.id,
-            materialFiles,
-            materials: payload.materials,
-          }),
-          240_000,
-          "Agent 识图评估超时，请稍后在运营台或报告页重新发起 AI 初审。",
-        );
-        message = payload.materials?.length
-          ? "申报成功，Agent 已完成凭证识图与风控评估。"
-          : "申报成功，Agent 已完成风控评估。";
-      } catch (agentError) {
-        const agentMessage = agentError instanceof Error ? agentError.message : "Agent 评估失败";
-        message = `申报已入库，但 Agent 评估未完成：${agentMessage}`;
-      }
+      message = payload.materials?.length
+        ? "申报成功，请稍候，正在跳转至报告页生成风控报告…"
+        : "申报成功，正在跳转至报告页生成风控报告…";
     }
 
     const latest = (await getReportById(report.id)) ?? report;
@@ -103,6 +88,7 @@ export async function POST(request: Request) {
       id: report.id,
       message,
       report: latest,
+      generating: runAgent,
     });
   } catch (error) {
     const authRes = authErrorResponse(error);

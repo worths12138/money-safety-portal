@@ -36,7 +36,7 @@ import { normalizeRiskRowsForAmount } from "@/lib/risk-amount-breakdown";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { SubmissionRow } from "@/lib/supabase/types";
 import type { ReportFinding } from "@/lib/site-data";
-import { ZHIPU_MODEL_LABEL, zhipuChatCompletion } from "@/lib/zhipu";
+import { ZHIPU_MODEL_LABEL, zhipuChatCompletion, zhipuChatCompletionStream } from "@/lib/zhipu";
 import {
   buildSubmissionAuditMessages,
   SUBMISSION_AUDIT_SYSTEM,
@@ -54,12 +54,34 @@ export type AgentReviewInput = {
   materials?: UploadedMaterial[];
 };
 
-export async function runAgentReview({
+export type AgentReviewProgressStep =
+  | "load"
+  | "pdf_extract"
+  | "image_ocr"
+  | "generating"
+  | "parsing"
+  | "done";
+
+export type AgentReviewStreamCallbacks = {
+  onProgress?: (step: AgentReviewProgressStep, label: string) => void;
+  onDelta?: (fullMarkdown: string) => void;
+};
+
+type AgentReviewContext = {
+  submission: SubmissionRow;
+  visionMaterials: UploadedMaterial[];
+  usedCachedMaterials: boolean;
+  effectiveMaterials?: UploadedMaterial[];
+  materialFiles?: string[];
+  extraText?: string;
+};
+
+async function loadAgentReviewContext({
   reportId,
   extraText,
   materialFiles,
   materials,
-}: AgentReviewInput) {
+}: AgentReviewInput): Promise<AgentReviewContext> {
   const supabase = getSupabaseAdmin();
   const { data: existing, error: fetchError } = await supabase
     .from("submissions")
@@ -85,20 +107,59 @@ export async function runAgentReview({
   const effectiveMaterials = materials?.length ? materials : cachedMaterials ?? undefined;
   const visionMaterials = effectiveMaterials?.length ? filterVisionMaterials(effectiveMaterials) : [];
 
+  return {
+    submission,
+    visionMaterials,
+    usedCachedMaterials,
+    effectiveMaterials,
+    materialFiles,
+    extraText,
+  };
+}
+
+async function generateAgentMarkdown(
+  ctx: AgentReviewContext,
+  callbacks?: AgentReviewStreamCallbacks,
+): Promise<{
+  markdown: string;
+  amountRecon: ReturnType<typeof compareDeclaredAndVoucher>;
+}> {
+  const { submission, visionMaterials, effectiveMaterials, materialFiles, extraText } = ctx;
+  const onProgress = callbacks?.onProgress;
+  const onDelta = callbacks?.onDelta;
+
   let markdown: string;
   let amountRecon: ReturnType<typeof compareDeclaredAndVoucher> = null;
 
   if (visionMaterials.length > 0) {
-    const audit = await runVisionAgentAudit({
-      projectName: submission.project_name,
-      projectPeriod: submission.project_period,
-      amount: submission.amount,
-      notes: submission.notes ?? undefined,
-      materials: visionMaterials,
-    });
+    onProgress?.("load", "正在准备凭证与审核规则…");
+    const audit = await runVisionAgentAudit(
+      {
+        projectName: submission.project_name,
+        projectPeriod: submission.project_period,
+        amount: submission.amount,
+        notes: submission.notes ?? undefined,
+        materials: visionMaterials,
+      },
+      {
+        onProgress: (label) => {
+          if (/PDF/.test(label)) {
+            onProgress?.("pdf_extract", label);
+          } else if (/识别/.test(label)) {
+            onProgress?.("image_ocr", label);
+          } else if (/生成/.test(label)) {
+            onProgress?.("generating", label);
+          } else {
+            onProgress?.("load", label);
+          }
+        },
+        onDelta,
+      },
+    );
     markdown = audit.markdown;
     amountRecon = compareDeclaredAndVoucher(submission.amount, audit.voucherSummary);
   } else {
+    onProgress?.("load", "正在加载审核规则与知识库…");
     const fullRulesPrompt = await getFullAuditRulesPrompt();
     const { ragPromptBlock } = buildRagAuditContext({
       projectName: submission.project_name,
@@ -109,7 +170,27 @@ export async function runAgentReview({
       extraText,
     });
     const rulesWithRag = [fullRulesPrompt, ragPromptBlock].filter(Boolean).join("\n\n");
-    markdown = await zhipuChatCompletion({
+
+    if (effectiveMaterials?.length) {
+      onProgress?.("pdf_extract", "正在提取凭证文字…");
+      const prepared = await prepareMaterialsForAudit(effectiveMaterials, (label) =>
+        onProgress?.("pdf_extract", label),
+      );
+      if (prepared.images.length > 0) {
+        onProgress?.("image_ocr", `正在识别 ${prepared.images.length} 张凭证金额…`);
+      }
+      const imageExtractions =
+        prepared.images.length > 0 ? await extractAmountsFromImages(prepared.images) : [];
+      const voucherSummary = summarizeVoucherAmounts({
+        pdfDocuments: prepared.pdfDocuments,
+        imageExtractions,
+        imageCount: prepared.images.length,
+      });
+      amountRecon = compareDeclaredAndVoucher(submission.amount, voucherSummary);
+    }
+
+    onProgress?.("generating", "AI 正在生成风控报告…");
+    markdown = await zhipuChatCompletionStream({
       system: SUBMISSION_AUDIT_SYSTEM,
       messages: buildSubmissionAuditMessages({
         projectName: submission.project_name,
@@ -121,20 +202,20 @@ export async function runAgentReview({
         fullRulesPrompt: rulesWithRag,
       }),
       maxTokens: 4096,
+      onDelta: (_delta, full) => onDelta?.(full),
     });
-
-    if (effectiveMaterials?.length) {
-      const prepared = await prepareMaterialsForAudit(effectiveMaterials);
-      const imageExtractions =
-        prepared.images.length > 0 ? await extractAmountsFromImages(prepared.images) : [];
-      const voucherSummary = summarizeVoucherAmounts({
-        pdfDocuments: prepared.pdfDocuments,
-        imageExtractions,
-        imageCount: prepared.images.length,
-      });
-      amountRecon = compareDeclaredAndVoucher(submission.amount, voucherSummary);
-    }
   }
+
+  return { markdown, amountRecon };
+}
+
+async function persistAgentReviewFromMarkdown(
+  ctx: AgentReviewContext,
+  markdown: string,
+  amountRecon: ReturnType<typeof compareDeclaredAndVoucher>,
+) {
+  const { submission, visionMaterials, usedCachedMaterials } = ctx;
+  const supabase = getSupabaseAdmin();
 
   const agentRiskScore = parseRiskScore(markdown);
   const rules = await getComplianceRules();
@@ -216,7 +297,7 @@ export async function runAgentReview({
       recommendations: recommendations.length ? recommendations : submission.recommendations,
       ai_notes: aiNotes,
     })
-    .eq("id", reportId)
+    .eq("id", submission.id)
     .select("*")
     .single();
 
@@ -225,10 +306,30 @@ export async function runAgentReview({
   }
 
   return {
-    reportId,
+    reportId: submission.id,
     riskScore,
     markdown,
     annotations: recommendations.slice(0, 3),
     submission: updated as SubmissionRow,
   };
+}
+
+export async function runAgentReviewStream(
+  input: AgentReviewInput,
+  callbacks?: AgentReviewStreamCallbacks,
+) {
+  const ctx = await loadAgentReviewContext(input);
+  callbacks?.onProgress?.("load", "正在加载申报记录…");
+
+  const { markdown, amountRecon } = await generateAgentMarkdown(ctx, callbacks);
+
+  callbacks?.onProgress?.("parsing", "正在解析报告并写入数据库…");
+  const result = await persistAgentReviewFromMarkdown(ctx, markdown, amountRecon);
+  callbacks?.onProgress?.("done", "风控报告已生成。");
+
+  return result;
+}
+
+export async function runAgentReview(input: AgentReviewInput) {
+  return runAgentReviewStream(input);
 }

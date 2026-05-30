@@ -15,7 +15,7 @@ import {
 import { pickPrimaryMaterialsForMultimodal } from "@/lib/material-prioritize";
 import { SUBMISSION_REPORT_FORMAT } from "@/lib/reimbursement-audit-prompts";
 import { sleep } from "@/lib/zhipu-upstream";
-import { zhipuChatCompletion, type ZhipuMessage } from "@/lib/zhipu";
+import { zhipuChatCompletion, zhipuChatCompletionStream, type ZhipuMessage } from "@/lib/zhipu";
 import type { ImageAmountExtraction } from "@/lib/voucher-image-amount";
 
 export type UploadedMaterial = {
@@ -58,7 +58,10 @@ export type PreparedMaterials = {
   skippedNames: string[];
 };
 
-export async function prepareMaterialsForAudit(materials: UploadedMaterial[]): Promise<PreparedMaterials> {
+export async function prepareMaterialsForAudit(
+  materials: UploadedMaterial[],
+  onProgress?: (label: string) => void,
+): Promise<PreparedMaterials> {
   const pdfResults: { name: string; text: string }[] = [];
   const images: UploadedMaterial[] = [];
   const skippedNames: string[] = [];
@@ -67,12 +70,21 @@ export async function prepareMaterialsForAudit(materials: UploadedMaterial[]): P
   const skipped = materials.filter((m) => !vision.includes(m));
   skippedNames.push(...skipped.map((m) => m.name));
 
+  const pdfMaterials = vision.filter(isPdfMaterial);
+  let pdfIndex = 0;
+
   for (const m of vision) {
     if (isVisionImageMaterial(m) && !isPdfMaterial(m)) {
       images.push(m);
       continue;
     }
     if (isPdfMaterial(m)) {
+      pdfIndex += 1;
+      onProgress?.(
+        pdfMaterials.length > 1
+          ? `正在提取 PDF 文字（${pdfIndex}/${pdfMaterials.length}）：${m.name}`
+          : `正在提取 PDF 文字：${m.name}`,
+      );
       try {
         const text = await extractPdfText(m);
         pdfResults.push({ name: m.name, text });
@@ -147,15 +159,30 @@ export type VisionAgentAuditResult = {
   voucherSummary: VoucherAmountSummary;
 };
 
-export async function runVisionAgentAudit(input: {
-  projectName: string;
-  projectPeriod: string;
-  amount: string;
-  notes?: string;
-  materials: UploadedMaterial[];
-}): Promise<VisionAgentAuditResult> {
+export type VisionAuditCallbacks = {
+  onProgress?: (label: string) => void;
+  onDelta?: (fullMarkdown: string) => void;
+};
+
+export async function runVisionAgentAudit(
+  input: {
+    projectName: string;
+    projectPeriod: string;
+    amount: string;
+    notes?: string;
+    materials: UploadedMaterial[];
+  },
+  callbacks?: VisionAuditCallbacks,
+): Promise<VisionAgentAuditResult> {
+  const onProgress = callbacks?.onProgress;
+  const onDelta = callbacks?.onDelta;
+
+  onProgress?.("正在加载审核规则与知识库…");
   const fullRulesPrompt = await getFullAuditRulesPrompt();
-  const { pdfText, pdfDocuments, images, skippedNames } = await prepareMaterialsForAudit(input.materials);
+  const { pdfText, pdfDocuments, images, skippedNames } = await prepareMaterialsForAudit(
+    input.materials,
+    onProgress,
+  );
   const { ragPromptBlock } = buildRagAuditContext({
     projectName: input.projectName,
     projectPeriod: input.projectPeriod,
@@ -179,6 +206,7 @@ export async function runVisionAgentAudit(input: {
   let overflowImageText = "";
 
   if (overflowImages.length > 0) {
+    onProgress?.(`正在并行识别其余 ${overflowImages.length} 张凭证金额…`);
     imageExtractions = await extractAmountsFromImages(overflowImages, {
       concurrency: IMAGE_EXTRACT_CONCURRENCY,
     });
@@ -200,7 +228,9 @@ export async function runVisionAgentAudit(input: {
   const recon = compareDeclaredAndVoucher(input.amount, voucherSummary);
   const amountReconHint = buildReconPromptHint(recon) + primaryPickNote;
 
-  const markdown = await zhipuChatCompletion({
+  onProgress?.("AI 正在生成风控报告…");
+
+  const markdown = await zhipuChatCompletionStream({
     system: VISION_AUDIT_SYSTEM,
     messages: buildMultimodalAuditMessages({
       projectName: input.projectName,
@@ -214,6 +244,7 @@ export async function runVisionAgentAudit(input: {
       amountReconHint,
     }),
     maxTokens: 4096,
+    onDelta: (_delta, full) => onDelta?.(full),
   });
 
   return { markdown, voucherSummary };

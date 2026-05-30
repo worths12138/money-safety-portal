@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TeacherWelcomeBar } from "@/components/teacher/TeacherWelcomeBar";
 import {
@@ -22,6 +22,7 @@ function riskScoreClass(score: number) {
 
 export default function AdminPage() {
   const pathname = usePathname();
+  const router = useRouter();
   const isTeacherPortal = pathname?.startsWith("/teacher") ?? false;
   const rulesHref = isTeacherPortal ? "/teacher/rules" : "/admin/rules";
 
@@ -167,48 +168,16 @@ export default function AdminPage() {
   async function runAgentReview(id: string, projectName: string) {
     if (
       !window.confirm(
-        `对「${projectName}」发起 AI 风控初审？\n将调用智谱多模态识图（凭证较多时约 1～4 分钟），请保持网络畅通。`,
+        `对「${projectName}」发起 AI 风控初审？\n将跳转至报告页并流式生成（凭证较多时约 1～4 分钟）。`,
       )
     ) {
       return;
     }
 
-    setAgentRunningId(id);
-    setError("");
-
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 300_000);
-
-    try {
-      const response = await fetch("/api/agent/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId: id }),
-        signal: controller.signal,
-      });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        message?: string;
-        report?: { riskScore?: number };
-      };
-
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.message ?? "AI 初审失败");
-      }
-
-      await loadData();
-    } catch (err) {
-      const message =
-        err instanceof DOMException && err.name === "AbortError"
-          ? "AI 初审超时。请减少凭证张数或压缩图片后，在报告页重试。"
-          : err instanceof Error
-            ? err.message
-            : "AI 初审失败";
-      setError(message);
-    } finally {
-      window.clearTimeout(timer);
-      setAgentRunningId(null);
-    }
+    const reportHref = isTeacherPortal
+      ? `/teacher/report/${id}?generating=1`
+      : `/report/${id}?generating=1`;
+    router.push(reportHref);
   }
 
   async function updateStatus(id: string, status: QueueStatus) {
