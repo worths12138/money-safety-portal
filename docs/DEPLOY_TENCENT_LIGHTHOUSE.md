@@ -165,7 +165,7 @@ server {
 
     client_max_body_size 50m;
 
-    # 流式 AI 初审：关闭缓冲，否则进度会卡在「准备审核」
+    # 流式 AI 初审：关闭缓冲与 gzip，否则进度会卡在「准备审核」
     location /api/agent/review/stream {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -174,7 +174,9 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
+        proxy_request_buffering off;
         proxy_cache off;
+        gzip off;
         proxy_read_timeout 300s;
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;

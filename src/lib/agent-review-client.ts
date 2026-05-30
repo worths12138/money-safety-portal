@@ -39,14 +39,106 @@ function parseSseBlock(block: string): { event: string; data: string } | null {
   return { event, data: dataLines.join("\n") };
 }
 
-/** 调用流式 Agent 初审，通过 SSE 接收进度与 Markdown 预览 */
-export async function streamAgentReview(
+function dispatchSseEvent(
+  event: string,
+  rawData: string,
+  callbacks: AgentReviewStreamCallbacks,
+  state: { done?: AgentReviewStreamDone; error?: string },
+) {
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = JSON.parse(rawData) as Record<string, unknown>;
+  } catch {
+    return;
+  }
+
+  if (event === "progress") {
+    callbacks.onProgress?.({
+      step: payload.step as AgentReviewProgressStep,
+      label: String(payload.label ?? ""),
+    });
+    return;
+  }
+  if (event === "delta") {
+    callbacks.onDelta?.(String(payload.markdown ?? ""));
+    return;
+  }
+  if (event === "done") {
+    state.done = payload as unknown as AgentReviewStreamDone;
+    callbacks.onDone?.(state.done);
+    return;
+  }
+  if (event === "fatal") {
+    state.error = String(payload.message ?? "Agent 评估失败");
+    callbacks.onError?.(state.error);
+  }
+}
+
+function streamViaEventSource(
   reportId: string,
   callbacks: AgentReviewStreamCallbacks,
   signal?: AbortSignal,
-) {
-  callbacks.onProgress?.({ step: "load", label: "正在请求服务端…" });
+): Promise<AgentReviewStreamDone> {
+  return new Promise((resolve, reject) => {
+    const state: { done?: AgentReviewStreamDone; error?: string } = {};
+    const url = `/api/agent/review/stream?reportId=${encodeURIComponent(reportId)}`;
+    const es = new EventSource(url);
 
+    const finish = (error?: Error) => {
+      es.close();
+      if (error) {
+        reject(error);
+        return;
+      }
+      if (state.error) {
+        reject(new Error(state.error));
+        return;
+      }
+      if (state.done) {
+        resolve(state.done);
+        return;
+      }
+      reject(new Error("连接意外中断，请稍后重试。"));
+    };
+
+    const onAbort = () => finish(new DOMException("Aborted", "AbortError"));
+
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    const bind = (event: string) => {
+      es.addEventListener(event, (ev) => {
+        const message = ev as MessageEvent<string>;
+        dispatchSseEvent(event, message.data, callbacks, state);
+        if (event === "done" || event === "fatal") {
+          signal?.removeEventListener("abort", onAbort);
+          finish(event === "fatal" ? new Error(state.error ?? "Agent 评估失败") : undefined);
+        }
+      });
+    };
+
+    bind("progress");
+    bind("delta");
+    bind("done");
+    bind("fatal");
+
+    es.onerror = () => {
+      if (state.done || state.error) return;
+      signal?.removeEventListener("abort", onAbort);
+      es.close();
+      reject(new Error("SSE 连接中断，请检查网络或 Nginx 是否关闭 proxy_buffering。"));
+    };
+  });
+}
+
+async function streamViaFetchPost(
+  reportId: string,
+  callbacks: AgentReviewStreamCallbacks,
+  signal?: AbortSignal,
+): Promise<AgentReviewStreamDone> {
   const response = await fetch("/api/agent/review/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -72,8 +164,7 @@ export async function streamAgentReview(
   const reader = response.body.getReader();
   const dec = new TextDecoder();
   let buffer = "";
-  let donePayload: AgentReviewStreamDone | null = null;
-  let errorMessage: string | null = null;
+  const state: { done?: AgentReviewStreamDone; error?: string } = {};
 
   while (true) {
     const { done, value } = await reader.read();
@@ -86,38 +177,41 @@ export async function streamAgentReview(
       buffer = buffer.slice(splitAt + 2);
       const parsed = parseSseBlock(block);
       if (parsed) {
-        try {
-          const payload = JSON.parse(parsed.data) as Record<string, unknown>;
-          if (parsed.event === "progress") {
-            callbacks.onProgress?.({
-              step: payload.step as AgentReviewProgressStep,
-              label: String(payload.label ?? ""),
-            });
-          } else if (parsed.event === "delta") {
-            callbacks.onDelta?.(String(payload.markdown ?? ""));
-          } else if (parsed.event === "done") {
-            donePayload = payload as unknown as AgentReviewStreamDone;
-            callbacks.onDone?.(donePayload);
-          } else if (parsed.event === "error") {
-            errorMessage = String(payload.message ?? "Agent 评估失败");
-            callbacks.onError?.(errorMessage);
-          }
-        } catch {
-          /* ignore malformed SSE payload */
-        }
+        dispatchSseEvent(parsed.event, parsed.data, callbacks, state);
       }
       splitAt = buffer.indexOf("\n\n");
     }
   }
 
-  if (errorMessage) {
-    throw new Error(errorMessage);
+  if (state.error) {
+    throw new Error(state.error);
   }
-  if (!donePayload) {
+  if (!state.done) {
     throw new Error("连接意外中断，请稍后重试。");
   }
+  return state.done;
+}
 
-  return donePayload;
+/** 调用流式 Agent 初审；优先 EventSource(GET)，失败时回退 fetch(POST) */
+export async function streamAgentReview(
+  reportId: string,
+  callbacks: AgentReviewStreamCallbacks,
+  signal?: AbortSignal,
+) {
+  callbacks.onProgress?.({ step: "load", label: "正在建立流式连接…" });
+
+  if (typeof EventSource !== "undefined") {
+    try {
+      return await streamViaEventSource(reportId, callbacks, signal);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
+      callbacks.onProgress?.({ step: "load", label: "SSE 连接异常，正在改用备用通道…" });
+    }
+  }
+
+  return streamViaFetchPost(reportId, callbacks, signal);
 }
 
 export const GENERATING_STEPS: Array<{
