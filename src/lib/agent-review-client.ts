@@ -214,6 +214,124 @@ export async function streamAgentReview(
   return streamViaFetchPost(reportId, callbacks, signal);
 }
 
+export type AgentReviewBlockingDone = AgentReviewStreamDone;
+
+/** 非流式兜底：SSE 不可用时仍能完成 AI 初审 */
+export async function runBlockingAgentReview(
+  reportId: string,
+  callbacks: AgentReviewStreamCallbacks,
+  signal?: AbortSignal,
+): Promise<AgentReviewBlockingDone> {
+  callbacks.onProgress?.({
+    step: "generating",
+    label: "流式进度不可用，正在后台生成报告（约 1～4 分钟，请勿关闭页面）…",
+  });
+
+  const response = await fetch("/api/agent/review", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reportId }),
+    signal,
+  });
+
+  const payload = (await response.json()) as {
+    ok?: boolean;
+    message?: string;
+    reportId?: string;
+    riskScore?: number;
+    annotations?: string[];
+    report?: AgentReviewBlockingDone["report"];
+    materialCache?: AgentReviewBlockingDone["materialCache"];
+  };
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.message ?? "Agent 评估失败");
+  }
+
+  const done: AgentReviewBlockingDone = {
+    ok: true,
+    message: payload.message ?? "Agent 已完成风控评估并回写报告。",
+    reportId: payload.reportId ?? reportId,
+    riskScore: payload.riskScore ?? 0,
+    annotations: payload.annotations ?? [],
+    report: payload.report,
+    materialCache: payload.materialCache,
+  };
+
+  callbacks.onProgress?.({ step: "parsing", label: "报告已生成，正在加载…" });
+  callbacks.onDone?.(done);
+  return done;
+}
+
+const SERVER_PROGRESS_HINTS = [
+  "流式通道",
+  "服务端",
+  "数据库",
+  "权限",
+  "申报",
+  "PDF",
+  "识别",
+  "智谱",
+  "规则",
+  "凭证",
+];
+
+function looksLikeServerProgress(label: string) {
+  return SERVER_PROGRESS_HINTS.some((hint) => label.includes(hint));
+}
+
+const STREAM_STALL_MS = 8_000;
+
+/** 流式优先；8 秒内无服务端进度则自动降级为后台生成 */
+export async function streamAgentReviewWithFallback(
+  reportId: string,
+  callbacks: AgentReviewStreamCallbacks,
+  signal?: AbortSignal,
+) {
+  let sawServerProgress = false;
+  const wrapped: AgentReviewStreamCallbacks = {
+    ...callbacks,
+    onProgress: (progress) => {
+      if (looksLikeServerProgress(progress.label)) {
+        sawServerProgress = true;
+      }
+      callbacks.onProgress?.(progress);
+    },
+  };
+
+  const streamAbort = new AbortController();
+  const onParentAbort = () => streamAbort.abort();
+  signal?.addEventListener("abort", onParentAbort, { once: true });
+
+  const stallTimer = setTimeout(() => {
+    if (!sawServerProgress) {
+      streamAbort.abort();
+    }
+  }, STREAM_STALL_MS);
+
+  try {
+    return await streamAgentReview(reportId, wrapped, streamAbort.signal);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError" && !sawServerProgress) {
+      return runBlockingAgentReview(reportId, callbacks, signal);
+    }
+    if (
+      !sawServerProgress &&
+      error instanceof Error &&
+      (error.message.includes("SSE") ||
+        error.message.includes("中断") ||
+        error.message.includes("意外") ||
+        error.message.includes("为空"))
+    ) {
+      return runBlockingAgentReview(reportId, callbacks, signal);
+    }
+    throw error;
+  } finally {
+    clearTimeout(stallTimer);
+    signal?.removeEventListener("abort", onParentAbort);
+  }
+}
+
 export const GENERATING_STEPS: Array<{
   step: AgentReviewProgressStep;
   title: string;

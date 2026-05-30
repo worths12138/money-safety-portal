@@ -7,7 +7,7 @@ import { ReportGeneratingPanel } from "@/components/ReportGeneratingPanel";
 import { RiskAmountPieChart } from "@/components/RiskAmountPieChart";
 import { exportReportPdf } from "@/lib/export-report-pdf";
 import {
-  streamAgentReview,
+  streamAgentReviewWithFallback,
   type AgentReviewStreamProgress,
 } from "@/lib/agent-review-client";
 import { formatConclusionForDisplay, formatSummaryForDisplay } from "@/lib/parse-audit-report";
@@ -189,6 +189,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
 
   const startAgentStream = useCallback(async () => {
     if (cacheExpired) {
+      setGenerateError(`凭证暂存已过期（${MATERIAL_CACHE_TTL_SEC} 秒），请返回预审核页重新上传后再评估。`);
+      setGenerating(false);
       setMessage(`凭证暂存已过期（${MATERIAL_CACHE_TTL_SEC} 秒），请返回预审核页重新上传后再评估。`);
       return;
     }
@@ -208,7 +210,7 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     const timer = window.setTimeout(() => controller.abort(), 300_000);
 
     try {
-      await streamAgentReview(
+      await streamAgentReviewWithFallback(
         id,
         {
           onProgress: (progress) => {
@@ -255,12 +257,15 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   }, [loadReport]);
 
   useEffect(() => {
-    if (!autoGenerateRequested || agentStreamStarted.current) {
+    if (!generating || rerunningAgent || agentStreamStarted.current) {
+      return;
+    }
+    if (!autoGenerateRequested) {
       return;
     }
     agentStreamStarted.current = true;
     void startAgentStream();
-  }, [autoGenerateRequested, startAgentStream]);
+  }, [autoGenerateRequested, generating, rerunningAgent, startAgentStream]);
 
   useEffect(() => {
     if (!materialCache.available) return;

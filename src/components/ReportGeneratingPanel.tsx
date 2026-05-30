@@ -7,6 +7,7 @@ import {
   type AgentReviewStreamProgress,
 } from "@/lib/agent-review-client";
 import type { AgentReviewProgressStep } from "@/lib/agent-review";
+import { STREAM_UI_VERSION } from "@/lib/stream-ui-version";
 
 type Props = {
   projectName: string;
@@ -159,6 +160,8 @@ export function ReportGeneratingPanel({ projectName, progress, streamMarkdown, e
       </p>
       <p className="mt-1 text-xs text-slate-500">
         正式报告（风险分、饼图、明细表）将在生成完成后一次性展示，版式与 PDF 导出保持一致。
+        <br />
+        客户端版本：{STREAM_UI_VERSION}（若界面仍显示「正在初始化」说明服务器未部署最新代码）
       </p>
 
       {error ? (
