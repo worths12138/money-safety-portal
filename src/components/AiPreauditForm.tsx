@@ -164,7 +164,7 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
 
     try {
       const visionFiles = storedFiles.filter((s) => isVisionFile(s.file)).map((s) => s.file);
-      setStatus(`正在处理 ${visionFiles.length} 份识图凭证（压缩/编码）…`);
+      setStatus(`正在处理 ${visionFiles.length} 份识图凭证…`);
       const materials = await Promise.all(visionFiles.map(encodeMaterialFile));
 
       setStatus("正在提交申报（约 10～30 秒，请勿关闭页面）…");
@@ -193,7 +193,7 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
     } catch (error) {
       const message =
         error instanceof DOMException && error.name === "AbortError"
-          ? `上传超时。请减少单张图片体积或份数后重试；若已入库，请到${reviewDeskLabel}发起「AI 初审」。`
+          ? `上传超时。请减少单张图片体积或份数后重试；若已成功入库，请到${reviewDeskLabel}发起「AI 初审」。`
           : error instanceof Error
             ? error.message
             : "提交失败，请检查网络后重试。";
@@ -321,7 +321,7 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
             disabled={submitting || visionCount === 0}
             className="student-primary-btn student-submit-btn"
           >
-            {submitting ? "提交中…" : "提交申报（入库）"}
+            {submitting ? "提交中…" : "提交申报"}
           </button>
         </div>
 
@@ -465,7 +465,7 @@ export function AiPreauditForm({ portal = "legacy" }: AiPreauditFormProps) {
 
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 10 }}>
           <button type="submit" disabled={submitting || visionCount === 0} style={primaryBtnStyle(!submitting && visionCount > 0)}>
-            {submitting ? "提交中…" : "提交申报（入库）"}
+            {submitting ? "提交中…" : "提交申报"}
           </button>
         </div>
 
