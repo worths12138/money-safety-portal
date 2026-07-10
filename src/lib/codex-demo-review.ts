@@ -3,7 +3,9 @@ import type { SubmissionRow } from "@/lib/supabase/types";
 
 export const CODEX_DEMO_REVIEW_TITLE = "codex审核";
 export const KIMI_DEMO_REVIEW_TITLE = "kimi审核";
+export const DACHUANG_DEMO_REVIEW_TITLE = "大创";
 export const CODEX_DEMO_REVIEW_DELAY_MS = 18_000;
+export const DACHUANG_DEMO_REVIEW_DELAY_MS = 30_000;
 
 type DemoReviewData = {
   riskScore: number;
@@ -19,20 +21,29 @@ type DemoReviewResult = DemoReviewData & {
   aiNotes: string[];
 };
 
-export function isCodexDemoReview(submission: Pick<SubmissionRow, "project_name">) {
+export function isCodexDemoReview(
+  submission: Pick<SubmissionRow, "project_name" | "project_period" | "amount">,
+) {
   const title = submission.project_name.trim();
-  return title === CODEX_DEMO_REVIEW_TITLE || title === KIMI_DEMO_REVIEW_TITLE;
+  return title === CODEX_DEMO_REVIEW_TITLE || title === KIMI_DEMO_REVIEW_TITLE || isDachuangDemoReview(submission);
+}
+
+export function getCodexDemoReviewDelayMs(
+  submission: Pick<SubmissionRow, "project_name" | "project_period" | "amount">,
+) {
+  return isDachuangDemoReview(submission) ? DACHUANG_DEMO_REVIEW_DELAY_MS : CODEX_DEMO_REVIEW_DELAY_MS;
 }
 
 export async function waitForCodexDemoReview(
+  delayMs = CODEX_DEMO_REVIEW_DELAY_MS,
   onProgress?: (elapsedSeconds: number, remainingSeconds: number) => void,
 ) {
   const startedAt = Date.now();
-  const totalSeconds = Math.ceil(CODEX_DEMO_REVIEW_DELAY_MS / 1000);
+  const totalSeconds = Math.ceil(delayMs / 1000);
 
   onProgress?.(0, totalSeconds);
 
-  while (Date.now() - startedAt < CODEX_DEMO_REVIEW_DELAY_MS) {
+  while (Date.now() - startedAt < delayMs) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
     const elapsedSeconds = Math.min(
       totalSeconds,
@@ -60,6 +71,17 @@ function isKimiLowRiskCase(submission: SubmissionRow) {
   const amountYuan = parseAmountYuan(submission.amount);
   const period = normalizeDateText(submission.project_period);
   return amountYuan > 0 && amountYuan <= 300 && /2026\.0?4\.22/.test(period);
+}
+
+function isDachuangDemoReview(submission: Pick<SubmissionRow, "project_name" | "project_period" | "amount">) {
+  const title = submission.project_name.trim();
+  const period = normalizeDateText(submission.project_period);
+  const amountYuan = parseAmountYuan(submission.amount);
+  return (
+    title === DACHUANG_DEMO_REVIEW_TITLE &&
+    amountYuan === 2000 &&
+    /2026\.0?1\.2026\.0?5/.test(period)
+  );
 }
 
 function amountReconNote(input: {
@@ -346,8 +368,107 @@ function buildKimiReview(submission: SubmissionRow): DemoReviewResult {
     : buildKimiHighRiskReview(submission);
 }
 
+function buildDachuangReview(submission: SubmissionRow): DemoReviewResult {
+  const riskRows: RiskRow[] = [
+    {
+      seq: "1",
+      item: "Codex/软件服务（含支付凭证）",
+      amount: "178.00",
+      tag: "材料缺失/支付合规性",
+      riskDesc:
+        "缺少关键支撑材料：未提供该服务的官网收费标准截图、用途说明、消耗明细（调用记录/token用量）等。发票销售方为“郑州市渡轩书贸易有限公司”，但支付凭证显示收款方为“肖巧满（个人）”，存在个人代收或第三方转付疑点，不符合公对公结算常规要求。（Medium）",
+      suggestion:
+        "请补充官网定价标准截图、后台消耗/调用记录、用途说明，并说明个人收款人与开票公司的关系；若无法说明，建议该笔暂缓报销。",
+    },
+    {
+      seq: "2",
+      item: "Kimi Vip会员订阅服务（含支付记录）",
+      amount: "199.00",
+      tag: "凭证一致/时间合规",
+      riskDesc:
+        "支付记录显示商品为 Kimi Vip，收款商户为北京月之暗面科技有限公司；发票与支付记录金额一致，日期为 2026-04-22，位于项目周期 2026.1-2026.5 内。该笔支出凭证链条完整，未发现明显异常。（Low）",
+      suggestion:
+        "该笔可按低风险处理。归档时保留发票、支付记录，并在备注中说明用于项目资料整理、文本分析及开发辅助。",
+    },
+    {
+      seq: "3",
+      item: "交通费-广州至珠海汽车票",
+      amount: "40.00",
+      tag: "不可报销类别（命中R016/R009）",
+      riskDesc:
+        "交通费属于普通大创项目通常不予报销或需专项审批的类别；当前材料未见比赛通知、获奖证明、活动邀请函等与项目强相关的佐证，且缺少对应支付流水凭证。（High）",
+      suggestion:
+        "建议该笔不予报销；如坚持报销，需在 3 个工作日内补充比赛/活动通知、参赛证明、行程与项目相关说明及支付流水。",
+    },
+  ];
+
+  const findings: ReportFinding[] = [
+    {
+      title: "申报总金额与凭据金额不一致",
+      level: "高",
+      detail:
+        "申报总金额 ¥2,000 高于凭据识别合计约 ¥417，差额 ¥1,583（约 79.2%），存在漏传凭证或预算虚报风险。",
+    },
+    {
+      title: "Codex 支出材料不足",
+      level: "中",
+      detail: "缺少官网定价、用途说明和消耗明细，且支付收款方与发票销售方不一致。",
+    },
+    {
+      title: "Kimi 支出低风险",
+      level: "低",
+      detail: "Kimi 发票与支付记录金额、商户和日期一致，日期位于项目周期内，可按低风险处理。",
+    },
+    {
+      title: "交通费不属于常规可报销类别",
+      level: "高",
+      detail: "交通费需专项依据或强相关证明，当前材料不足。",
+    },
+  ];
+
+  const recommendations = [
+    "建议先退回补充差额对应凭证或说明，确认 ¥1,583 差额构成后再审批。",
+    "Kimi Vip 会员订阅服务凭证一致、时间合规，可作为低风险支出处理。",
+    "Codex 支出需补充官网定价、调用/消耗明细及支付收款方说明。",
+    "交通费建议不予报销；如需报销，应补充比赛/活动通知、参赛证明和支付流水。",
+  ];
+
+  const message =
+    "申报总金额 ¥2,000 高于凭据识别合计约 ¥417，差额 ¥1,583（约 79.2%），存在漏传凭证或预算虚报风险。";
+  const demo: DemoReviewData = {
+    riskScore: 85,
+    summary: `${message} 合规风控风险分 85/100（偏高），建议重点核查差额构成后再审批。`,
+    conclusion:
+      "立即启动差额质询：鉴于申报金额与实据相差 ¥1,583（近80%），建议先退回让学生确认是否存在漏传附件或误填总额；其中 Kimi 支出凭证一致、时间合规，可按低风险处理。",
+    riskRows,
+    findings,
+    recommendations,
+  };
+  const markdown = buildMarkdown(submission, demo);
+
+  return {
+    ...demo,
+    markdown,
+    aiNotes: [
+      "演示模式：标题为 大创、周期 2026.1-2026.5、金额 2000，已按预置结果生成报告。",
+      "演示耗时：约 30 秒。",
+      amountReconNote({
+        declaredYuan: 2000,
+        voucherYuan: 417,
+        deltaYuan: 1583,
+        deltaPercent: 79.2,
+        severity: "critical",
+        message,
+      }),
+      markdown,
+    ],
+  };
+}
+
 export function buildCodexDemoReview(submission: SubmissionRow) {
-  return submission.project_name.trim() === KIMI_DEMO_REVIEW_TITLE
+  return isDachuangDemoReview(submission)
+    ? buildDachuangReview(submission)
+    : submission.project_name.trim() === KIMI_DEMO_REVIEW_TITLE
     ? buildKimiReview(submission)
     : buildCodexReview(submission);
 }

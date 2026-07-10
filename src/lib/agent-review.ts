@@ -47,6 +47,7 @@ import {
 } from "@/lib/report-material-cache-server";
 import {
   buildCodexDemoReview,
+  getCodexDemoReviewDelayMs,
   isCodexDemoReview,
   waitForCodexDemoReview,
 } from "@/lib/codex-demo-review";
@@ -382,9 +383,10 @@ export async function runAgentReviewStream(
 
   if (isCodexDemoReview(ctx.submission)) {
     callbacks?.onProgress?.("load", "已命中演示模式，正在准备预置审核结果…");
-    await waitForCodexDemoReview(() => {
-      callbacks?.onProgress?.("generating", "AI 正在生成风控报告…");
-    });
+    await waitForCodexDemoReview(
+      getCodexDemoReviewDelayMs(ctx.submission),
+      () => callbacks?.onProgress?.("generating", "AI 正在生成风控报告…"),
+    );
 
     const demoPreview = buildCodexDemoReview(ctx.submission).markdown;
     callbacks?.onDelta?.(demoPreview);
