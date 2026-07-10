@@ -24,6 +24,6 @@ export const STUDENT_SUBMISSION_LIMIT = 10;
 
 /** 教师每日 AI 初审次数上限（内存计数，重启清零） */
 export function teacherAgentDailyLimit() {
-  const raw = Number.parseInt(process.env.TEACHER_AGENT_DAILY_LIMIT ?? "30", 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : 30;
+  const raw = Number.parseInt(process.env.TEACHER_AGENT_DAILY_LIMIT ?? "60", 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : 60;
 }

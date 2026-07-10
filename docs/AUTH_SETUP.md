@@ -37,7 +37,7 @@ npm run seed:users
 
 - 配置 **anon key** 后，`/student/*`、`/teacher/*` 需登录（`/login` 除外）。
 - 学生仅可提交申报、查看**本人**报告；每账号最多 **10** 条申报，超出自动删最早记录。
-- 教师可查看全部队列、**AI 初审**、通过/驳回；AI 初审默认每日 **30** 次（`TEACHER_AGENT_DAILY_LIMIT`）。
+- 教师可查看全部队列、**AI 初审**、通过/驳回；AI 初审默认每日 **60** 次（`TEACHER_AGENT_DAILY_LIMIT`）。
 - 未配置 anon key 时保持旧行为（开放访问），便于本地调试。
 
 ## 4. 部署后
