@@ -287,8 +287,8 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
   }, [startAgentStream]);
 
   const rawRiskRows = useMemo(
-    () => (report.riskRows?.length ? report.riskRows : defaultRiskRows),
-    [report.riskRows],
+    () => (pendingAgent ? (report.riskRows?.length ? report.riskRows : defaultRiskRows) : report.riskRows ?? []),
+    [pendingAgent, report.riskRows],
   );
   const riskRowsForTable = useMemo(
     () => riskRowsForTableDisplay(rawRiskRows, report.amount || ""),

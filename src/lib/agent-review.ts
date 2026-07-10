@@ -317,7 +317,7 @@ async function persistAgentReviewFromMarkdown(
       risk_score: riskScore,
       summary,
       conclusion,
-      risk_rows: riskRows.length ? riskRows : submission.risk_rows,
+      risk_rows: riskRows,
       findings: findings.length ? findings : submission.findings,
       recommendations: recommendations.length ? recommendations : submission.recommendations,
       ai_notes: aiNotes,
