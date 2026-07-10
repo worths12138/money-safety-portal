@@ -45,6 +45,11 @@ import {
   loadServerMaterials,
   saveServerMaterials,
 } from "@/lib/report-material-cache-server";
+import {
+  buildCodexDemoReview,
+  isCodexDemoReview,
+  waitForCodexDemoReview,
+} from "@/lib/codex-demo-review";
 
 export type AgentReviewInput = {
   reportId: string;
@@ -334,6 +339,39 @@ async function persistAgentReviewFromMarkdown(
   };
 }
 
+async function persistCodexDemoReview(ctx: AgentReviewContext) {
+  const { submission } = ctx;
+  const supabase = getSupabaseAdmin();
+  const demo = buildCodexDemoReview(submission);
+
+  const { data: updated, error: updateError } = await supabase
+    .from("submissions")
+    .update({
+      risk_score: demo.riskScore,
+      summary: demo.summary,
+      conclusion: demo.conclusion,
+      risk_rows: demo.riskRows,
+      findings: demo.findings,
+      recommendations: demo.recommendations,
+      ai_notes: demo.aiNotes,
+    })
+    .eq("id", submission.id)
+    .select("*")
+    .single();
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  return {
+    reportId: submission.id,
+    riskScore: demo.riskScore,
+    markdown: demo.markdown,
+    annotations: demo.recommendations.slice(0, 3),
+    submission: updated as SubmissionRow,
+  };
+}
+
 export async function runAgentReviewStream(
   input: AgentReviewInput,
   callbacks?: AgentReviewStreamCallbacks,
@@ -341,6 +379,20 @@ export async function runAgentReviewStream(
   const onProgress = callbacks?.onProgress;
   onProgress?.("load", "正在加载申报记录…");
   const ctx = await loadAgentReviewContext(input, onProgress);
+
+  if (isCodexDemoReview(ctx.submission)) {
+    callbacks?.onProgress?.("load", "已命中演示模式，正在准备预置审核结果…");
+    await waitForCodexDemoReview(() => {
+      callbacks?.onProgress?.("generating", "AI 正在生成风控报告…");
+    });
+
+    const demoPreview = buildCodexDemoReview(ctx.submission).markdown;
+    callbacks?.onDelta?.(demoPreview);
+    callbacks?.onProgress?.("parsing", "正在写入演示风控报告…");
+    const result = await persistCodexDemoReview(ctx);
+    callbacks?.onProgress?.("done", "风控报告已生成。");
+    return result;
+  }
 
   const { markdown, amountRecon } = await generateAgentMarkdown(ctx, callbacks);
 
