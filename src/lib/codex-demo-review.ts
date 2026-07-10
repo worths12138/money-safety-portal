@@ -25,7 +25,7 @@ export function isCodexDemoReview(
   submission: Pick<SubmissionRow, "project_name" | "project_period" | "amount">,
 ) {
   const title = submission.project_name.trim();
-  return title === CODEX_DEMO_REVIEW_TITLE || title === KIMI_DEMO_REVIEW_TITLE || isDachuangDemoReview(submission);
+  return isCodexStandaloneDemoReview(submission) || title === KIMI_DEMO_REVIEW_TITLE || isDachuangDemoReview(submission);
 }
 
 export function getCodexDemoReviewDelayMs(
@@ -71,6 +71,17 @@ function isKimiLowRiskCase(submission: SubmissionRow) {
   const amountYuan = parseAmountYuan(submission.amount);
   const period = normalizeDateText(submission.project_period);
   return amountYuan > 0 && amountYuan <= 300 && /2026\.0?4\.22/.test(period);
+}
+
+function isCodexStandaloneDemoReview(submission: Pick<SubmissionRow, "project_name" | "project_period" | "amount">) {
+  const title = submission.project_name.trim();
+  const period = normalizeDateText(submission.project_period);
+  const amountYuan = parseAmountYuan(submission.amount);
+  return (
+    title === CODEX_DEMO_REVIEW_TITLE &&
+    amountYuan === 200 &&
+    /2026\.0?1\.2026\.0?3/.test(period)
+  );
 }
 
 function isDachuangDemoReview(submission: Pick<SubmissionRow, "project_name" | "project_period" | "amount">) {
@@ -267,8 +278,8 @@ function buildKimiHighRiskReview(submission: SubmissionRow): DemoReviewResult {
   const message =
     "申报总金额 ¥2,000 高于凭据识别合计 ¥199，差额 ¥1,801（约 90.1%），存在虚报或漏传凭证风险。";
   const demo: DemoReviewData = {
-    riskScore: 85,
-    summary: `${message} 合规风控风险分 85/100（高风险），存在需补充材料项，请结合下表处理。`,
+    riskScore: 100,
+    summary: `${message} 合规风控风险分 100/100（高风险），存在需补充材料项，请结合下表处理。`,
     conclusion:
       "立即退回并要求解释金额差异：请学生书面说明 1801 元差额原因，是漏传材料还是误填总额；如为漏传，限期 3 个工作日内补齐所有原始凭证；如为误填，要求重新提交申请表并将总额改为 199 元。",
     riskRows,
